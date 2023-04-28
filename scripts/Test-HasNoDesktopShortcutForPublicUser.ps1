@@ -17,7 +17,7 @@ function Test-HasNoDesktopShortcutForPublicUser () {
         [Parameter(Mandatory = $true)]
         [string]$packageName,
 
-        [Parameter(Mandatory = $true)]
+        [Parameter()]
         [string]$originalName
     )
 
@@ -37,14 +37,18 @@ function Test-HasNoDesktopShortcutForPublicUser () {
             $shortcutName,
             (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*" | Where-Object {$_.DisplayName -like "*$packageName*"}).DisplayName,
             $originalName
-
         )
 
         foreach ($name in $shortcutNames) {
-            $shortcutPath = "C:\Users\Public\Desktop\$name.lnk"
-            if (Test-Path $shortcutPath) {
-                Write-Log -Message "Desktop-Shortcut for '$packageName' found!" -Severity 2
-                return $false
+            # Check if $name is not empty (e.g. if no $originalName was found!)
+            if ($name){
+                $shortcutPath = "C:\Users\Public\Desktop\$name.lnk"
+
+                if (Test-Path $shortcutPath) {
+                    Write-Log -Message "Desktop-Shortcut for '$packageName' found!" -Severity 2
+                    return $false
+                }
+    
             }
         }
 

@@ -18,7 +18,7 @@ function Get-OriginalSoftwareName () {
         [string]$package,
 
         [Parameter(Mandatory = $true)]
-        [int]$version
+        [version]$version
     )
 
     begin {

@@ -17,12 +17,24 @@ function Test-HasNotMultipleAppWizEntries () {
         [Parameter(Mandatory = $true)]
         [string]$packageName,
 
-        [Parameter(Mandatory = $true)]
+        [Parameter()]
         [string]$originalName
     )
 
     begin {
         Write-Log -Message "Searching for multiple App-Wizard Entries for '$packageName'..." -Severity 0
+
+        function SearchRegistry($package) {
+            $entries = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*" | Where-Object {($_.DisplayName -eq "$package")}
+            if ($entries.Count -gt 1) {
+                Write-Log -Message "Multiple App-Wizard Entries found for '$packageName'!" -Severity 2
+                return $false
+            } else {
+                Write-Log -Message "NO Multiple App-Wizard Entries found for '$packageName'!" -Severity 1
+                return $true
+            }
+        }
+
     } 
     
     process {           
@@ -33,14 +45,12 @@ function Test-HasNotMultipleAppWizEntries () {
             $shortcutName = $packageName
         }
 
-        $entries = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*" | Where-Object {($_.DisplayName -eq "$originalName") -or ($_.DisplayName -like "*$shortcutName*")}
-        if ($entries.Count -gt 1) {
-            Write-Log -Message "Multiple App-Wizard Entries found for '$packageName'!" -Severity 2
-            return $false
+        if ($originalName){
+            SearchRegistry -package $originalName
         } else {
-            Write-Log -Message "NO Multiple App-Wizard Entries found for '$packageName'!" -Severity 1
-            return $true
+            SearchRegistry -package $shortcutName
         }
+        
     } 
     
     end {

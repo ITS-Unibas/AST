@@ -24,12 +24,13 @@ function Start-AutomatedSoftwareTesting {
         $rootPath = (Get-Item -Path $PSScriptRoot).Parent.FullName
         $resultsPath = Join-Path -Path $rootPath -ChildPath $Config.Logging.ResultsPath
         $maxResultFiles = $Config.Logging.MaxResultFiles
-        $resultsFilePath = Join-Path -Path $resultsPath -ChildPath "$($Config.Logging.ResultsLogPrefix)_$(Get-Date -Format yyyyMMdd_HHmmss).json"
     }
 
     process {
         # Get list of installed packages from Chocolatey and loop through them to check for updates
-        $outdatedPackages = Get-OutdatedPackages
+        $foundPackages = Get-OutdatedPackages
+        $outdatedPackages = $foundPackages.outdatedPackages # Needed to write it like this because $outdatedPackages returns doubled contents! 
+        $notOutdatedPackages = $foundPackages.notOutdatedPackages
 
         if ($outdatedPackages.Count -eq 0){
             Write-Log -Message "No outdated packages found!" -Severity 0
@@ -76,11 +77,13 @@ function Start-AutomatedSoftwareTesting {
 
                 # Check if the update-process was successful or not and move on if so
                 if ($updateResult.ExitCode -eq 0){
-                    #Write-Log -Message "Installation of $($newPackage.PackageName) successful!" -Severity 1
-
                     $originalSoftwareName = Get-OriginalSoftwareName -package $outdatedPackageName -version $outdatedPackageInstalledVersion
-                    
-                    Write-Log -Message "Found original Softwarename for: $($newPackage.PackageName) - `"$($originalSoftwareName)`"" -Severity 0
+
+                    if ($originalSoftwareName){
+                        Write-Log -Message "Found original Softwarename for: $($newPackage.PackageName) - `"$($originalSoftwareName)`"" -Severity 0
+                    } else {
+                        Write-Log -Message "No original Softwarename found for: $($newPackage.PackageName). Results may not be accurate enough!" -Severity 1
+                    }
 
                     $returnHDSFPU = Test-HasNoDesktopShortcutForPublicUser -packageName $outdatedPackageName -originalName $originalSoftwareName
 
@@ -117,7 +120,7 @@ function Start-AutomatedSoftwareTesting {
                     $newPackages.Add($newPackage.PackageName, $newPackage)
 
                 } else {
-                    # the update process did not succeed contiune with the next outdated Package. Reason: we can not be sure if the unsuccessful update crashed something
+                    # the update process did not succeed: contiune with the next outdated Package. Reason: we can not be sure if the unsuccessful update crashed something
 
                     $newPackage.HasNoDesktopShortcutForPublicUser = "false"
                     $newPackage.HasNotMultipleAddRemoveEntries = "false"
@@ -130,15 +133,63 @@ function Start-AutomatedSoftwareTesting {
                     continue
                 }
             }
+        }
+        
+        # Add all not-outdated Packages (= packages that failed in the last run) to the  $newPackages-Array
+        if ($notOutdatedPackages.Count -ne 0){
+            $oldPackages = @{}
 
-            # Sort all new Packages alphabetically and format them to export to a JSON-File
-            $newPackages = $newPackages.GetEnumerator() | Sort-Object -Property Name
-            $allNewPackages = Add-ToAllNewPackages -pacakges $newPackages
+            foreach ($notOutdatedPackage in $notOutdatedPackages){
+                # Get the latest results.json file
+                $latestResultsJSONFile = Get-ChildItem -Path $resultsPath -Filter "*.json" | Sort-Object CreationTime | Select-Object -Last 1
+                $latestResultsJSONFilePath = Join-Path $latestResultsJSONFile.PSParentPath $latestResultsJSONFile.Name
+                $latestResultsJSON = Get-Content -Path $latestResultsJSONFilePath
+                $latestResults = $latestResultsJSON | ConvertFrom-Json
+                
+                # Container for results
+                $oldPackage = [PSCustomObject]@{
+                    PackageName = ""
+                    InstalledVersion = ""
+                    LatestVersion = ""
+                    UpdateExitCode = ""
+                    UpdateExitMessage = ""
+                    HasNoDesktopShortcutForPublicUser = ""
+                    HasNotMultipleAddRemoveEntries = ""
+                    UninstallExitCode = ""
+                    UninstallExitMessage = ""
+                    InstallExitCode = ""
+                    InstallExitMessage = ""
+                }
+    
+                $notOutdatedPackageName = $notOutdatedPackage.PackageName
+    
+                $oldPackage.PackageName = $notOutdatedPackageName
+                $oldPackage.InstalledVersion = $latestResults.$($notOutdatedPackageName).InstalledVersion
+                $oldPackage.LatestVersion = $latestResults.$($notOutdatedPackageName).LatestVersion
+                $oldPackage.UpdateExitCode = $latestResults.$($notOutdatedPackageName).UpdateExitCode
+                $oldPackage.UpdateExitMessage = $latestResults.$($notOutdatedPackageName).UpdateExitMessage
+                $oldPackage.HasNoDesktopShortcutForPublicUser = $latestResults.$($notOutdatedPackageName).HasNoDesktopShortcutForPublicUser
+                $oldPackage.HasNotMultipleAddRemoveEntries = $latestResults.$($notOutdatedPackageName).HasNotMultipleAddRemoveEntries
+                $oldPackage.UninstallExitCode = $latestResults.$($notOutdatedPackageName).UninstallExitCode
+                $oldPackage.UninstallExitMessage = $latestResults.$($notOutdatedPackageName).UninstallExitMessage
+                $oldPackage.InstallExitCode = $latestResults.$($notOutdatedPackageName).InstallExitCode
+                $oldPackage.InstallExitMessage = $latestResults.$($notOutdatedPackageName).InstallExitMessage
+    
+                $oldPackages.Add($notOutdatedPackageName, $oldPackage)
+    
+            }
+        }
+        
+        # Sort all Packages alphabetically and format them to export to a JSON-File
+        if (($newPackages.Count -ne 0) -or ($oldPackages.Count -ne 0)){
+            $allPackages = $newPackages + $oldPackages
+            $allPackages = $allPackages.GetEnumerator() | Sort-Object -Property Name
+            $allNewPackages = Add-ToAllNewPackages -packages $allPackages
         }
     }
 
     end {
-        if ($outdatedPackages.Count -ne 0){
+        if (($outdatedPackages.Count -ne 0) -or ($notOutdatedPackages.Count -ne 0)){
             # Write results to JSON file
             # Create ResultsLogFileFolder if not available and check for maxResultsFiles
             if (-Not (Test-Path $resultsPath -ErrorAction SilentlyContinue)) {
@@ -153,6 +204,7 @@ function Start-AutomatedSoftwareTesting {
                 Get-ChildItem $resultsPath | Sort-Object CreationTime | Select-Object -First ($numResultsFiles - $maxResultFiles + 1) | Remove-Item
             }
 
+            $resultsFilePath = Join-Path -Path $resultsPath -ChildPath "$($Config.Logging.ResultsLogPrefix)_$(Get-Date -Format yyyyMMdd_HHmmss).json"
             $allNewPackages | ConvertTo-Json | Out-File $resultsFilePath
 
             # Write results to Confluence page

@@ -30,7 +30,7 @@ function Install-SWPackage {
         } else {
             Write-Log -Message "Installing '$packageName'..." -Severity 0
         }
-        $argumentList = "upgrade $packageName --yes"
+        $argumentList = "upgrade $packageName --yes --force"
     } 
     
     process {
@@ -44,17 +44,20 @@ function Install-SWPackage {
                 Write-Log -Message "'$packageName' successfully installed." -Severity 1
             }
             $ExitMessage = "-"
+
         } else {
+            $ExitMessage = Search-ChocoLogFile -package $packageName
+
             if ($update){
-                Write-Log -Message "An error occurred while updating '$packageName'. Message: " -Severity 3
+                Write-Log -Message "An error occurred while updating '$packageName'. Exit-Code: $exitCode" -Severity 3
+                Write-Log -Message "Exit-Message: $ExitMessage" -Severity 3
             } else {
-                Write-Log -Message "An error occurred while installing '$packageName'. Message: " -Severity 3
+                Write-Log -Message "An error occurred while installing '$packageName'. Exit-Code: $exitCode" -Severity 3
+                Write-Log -Message "Exit-Message: $ExitMessage" -Severity 3
             }
-            Write-Log -Message "$LastExitCode" -Severity 0
-            $ExitMessage = $LastExitCode  
         }
 
-        return @{ExitCode = $exitCode; Message = $exitMessage}
+        return @{ExitCode = $exitCode; Message = $exitMessage} 
     }
     
     end{

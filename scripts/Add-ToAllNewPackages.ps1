@@ -27,6 +27,7 @@ function Add-ToAllNewPackages () {
         foreach ($package in $packages){
             $singlePackage = @{
                 "$($package.Name)" = @{
+                    TimeStamp = $($package.Value.TimeStamp)
                     InstalledVersion = $($package.Value.InstalledVersion)
                     LatestVersion = $($package.Value.LatestVersion)
                     UpdateExitCode = $($package.Value.UpdateExitCode)

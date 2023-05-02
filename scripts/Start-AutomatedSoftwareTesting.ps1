@@ -52,6 +52,7 @@ function Start-AutomatedSoftwareTesting {
 
                 # Container for results
                 $newPackage = [PSCustomObject]@{
+                    TimeStamp = ""
                     PackageName = ""
                     InstalledVersion = ""
                     LatestVersion = ""
@@ -64,7 +65,9 @@ function Start-AutomatedSoftwareTesting {
                     InstallExitCode = ""
                     InstallExitMessage = ""
                 }
-
+                
+                $timeStamp = (Get-Date -Format 'MM/dd/yyyy HH:mm:ss').ToString() -replace "\.", "/"
+                $newPackage.TimeStamp = $timeStamp
                 $newPackage.PackageName = $outdatedPackageName
                 $newPackage.InstalledVersion = $outdatedPackageInstalledVersion
                 $newPackage.LatestVersion = $outdatedPackageLatestVersion
@@ -148,6 +151,7 @@ function Start-AutomatedSoftwareTesting {
                 
                 # Container for results
                 $oldPackage = [PSCustomObject]@{
+                    TimeStamp = ""
                     PackageName = ""
                     InstalledVersion = ""
                     LatestVersion = ""
@@ -163,6 +167,7 @@ function Start-AutomatedSoftwareTesting {
     
                 $notOutdatedPackageName = $notOutdatedPackage.PackageName
     
+                $oldPackage.TimeStamp = $latestResults.$($notOutdatedPackageName).TimeStamp
                 $oldPackage.PackageName = $notOutdatedPackageName
                 $oldPackage.InstalledVersion = $latestResults.$($notOutdatedPackageName).InstalledVersion
                 $oldPackage.LatestVersion = $latestResults.$($notOutdatedPackageName).LatestVersion
@@ -181,11 +186,14 @@ function Start-AutomatedSoftwareTesting {
         }
         
         # Sort all Packages alphabetically and format them to export to a JSON-File
-        if (($newPackages.Count -ne 0) -or ($oldPackages.Count -ne 0)){
-            $allPackages = $newPackages + $oldPackages
+        $allPackages = if($newPackages){$newPackages}
+        $allPackages = if($oldPackages){$allPackages + $oldPackages} else {$allPackages}
+
+        if ($allPackages.Count -ne 0){
             $allPackages = $allPackages.GetEnumerator() | Sort-Object -Property Name
             $allNewPackages = Add-ToAllNewPackages -packages $allPackages
         }
+        
     }
 
     end {
@@ -206,8 +214,10 @@ function Start-AutomatedSoftwareTesting {
 
             $resultsFilePath = Join-Path -Path $resultsPath -ChildPath "$($Config.Logging.ResultsLogPrefix)_$(Get-Date -Format yyyyMMdd_HHmmss).json"
             $allNewPackages | ConvertTo-Json | Out-File $resultsFilePath
+        }
 
-            # Write results to Confluence page
+        # Write results to Confluence page only if new packages were tested
+        if ($outdatedPackages.Count -ne 0){
             Move-ToConfluence -JsonFilePath $resultsFilePath
         }
 

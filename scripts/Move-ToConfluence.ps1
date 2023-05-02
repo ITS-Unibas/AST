@@ -94,7 +94,12 @@ function Move-ToConfluence {
         # Create a headline for the results
         $date = Get-Date
         $countPackageTesting = ($json.PSObject.Properties.Length).Count
-        $headline = "<h1>$date ($countPackageTesting Packages tested)</h1>"
+
+        if ($countPackageTesting -eq 1){
+            $headline = "<h1>$date ($countPackageTesting Package tested)</h1>"
+        } else {
+            $headline = "<h1>$date ($countPackageTesting Packages tested)</h1>"
+        }
 
         # Creating the table with the results for the confluence page and set the new page-content with the old contents
         $table = ""

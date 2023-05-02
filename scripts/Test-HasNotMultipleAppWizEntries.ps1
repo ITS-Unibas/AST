@@ -18,7 +18,7 @@ function Test-HasNotMultipleAppWizEntries () {
         [string]$packageName,
 
         [Parameter()]
-        [string]$originalName
+        $originalName
     )
 
     begin {

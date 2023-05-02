@@ -88,7 +88,7 @@ function Move-ToConfluence {
         $statusTable = "<table><tr><th>Status-Codes</th></tr><tr><td style='background-color: $($confluenceLightGreen)'>Update / Install and Uninstall successful</td></tr><tr><td style='background-color: $($confluenceLightYellow)'>Update / Install and Uninstall successful - BUT Has Desktop-Shortcut and/or multiple AppWiz-Entries</td></tr><tr><td style='background-color: $($confluenceLightRed)'>Update / Install and Uninstall NOT successful</td></tr></table>"
         
         # Remove the 'Status-Codes' table, so that it is only shown once on the results-page
-        $statusTablePattern = "<table>.*Status-Codes.*?</table>"
+        $statusTablePattern = "<table.*>.*Status-Codes.*?</table>"
         $currentPageBody = $currentPageBody -replace $statusTablePattern, ""
 
         # Create a headline for the results

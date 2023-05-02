@@ -18,7 +18,7 @@ function Test-HasNoDesktopShortcutForPublicUser () {
         [string]$packageName,
 
         [Parameter()]
-        [string]$originalName
+        $originalName
     )
 
     begin {

@@ -186,11 +186,14 @@ function Start-AutomatedSoftwareTesting {
         }
         
         # Sort all Packages alphabetically and format them to export to a JSON-File
-        if (($newPackages.Count -ne 0) -or ($oldPackages.Count -ne 0)){
-            $allPackages = $newPackages + $oldPackages
+        $allPackages = if($newPackages){$newPackages}
+        $allPackages = if($oldPackages){$allPackages + $oldPackages} else {$allPackages}
+
+        if ($allPackages.Count -ne 0){
             $allPackages = $allPackages.GetEnumerator() | Sort-Object -Property Name
             $allNewPackages = Add-ToAllNewPackages -packages $allPackages
         }
+        
     }
 
     end {

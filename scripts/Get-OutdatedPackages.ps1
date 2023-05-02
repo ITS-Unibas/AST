@@ -26,7 +26,6 @@ function Get-OutdatedPackages () {
         # Get the latest results.json file
         $latestResultsJSONFile = Get-ChildItem -Path $resultsPath -Filter "*.json" | Sort-Object CreationTime | Select-Object -Last 1
         $latestResultsJSONFilePath = Join-Path $latestResultsJSONFile.PSParentPath $latestResultsJSONFile.Name
-        $latestResultsTimeStamp = $latestResultsJSONFile.CreationTime
         $latestResultsJSON = Get-Content -Path $latestResultsJSONFilePath
         $latestResults = $latestResultsJSON | ConvertFrom-Json
         $latestCheckedPackages = $latestResults.PSObject.Properties.Name
@@ -55,6 +54,7 @@ function Get-OutdatedPackages () {
 
         foreach ($package in $outdatedChocolateyPackages){
             $packageNameToTest = $package.PackageName
+            $resultsTimeStamp = $latestResults.$($packageNameToTest).TimeStamp
             # if next step is true: package was already tested!            
             if ($packageNameToTest -in $latestCheckedPackages){
                 
@@ -76,8 +76,8 @@ function Get-OutdatedPackages () {
                         if ($timeStamp){
                             # if the returned timestamp is greater than the creation-time of the JSON-File: Changes were made to the package and pushed to the Repo! Go on and test again:
                             # if the returned timestamp is lower than the creation-time of the JSON-File: No changes were made to the package°
-                            if ($timeStamp -ge $latestResultsTimeStamp){
-                                Write-Log "Package on Repo Server seems to be updated - $PackageNameToTest@$latestVersionToTest will be tested again! (Last Test: $latestResultsTimeStamp. Package publish date: $timeStamp.)" -Severity 1    
+                            if ($timeStamp -ge $resultsTimeStamp){
+                                Write-Log "Package on Repo Server seems to be updated - $PackageNameToTest@$latestVersionToTest will be tested again! (Last Test: $resultsTimeStamp. Package publish date: $timeStamp.)" -Severity 1    
                                 $getOutdatedPackages.Add($package)
                             } else {
                                 Write-Log "Skip testing for $PackageNameToTest@$latestVersionToTest because no packages-changes on the Repo detected." -Severity 1

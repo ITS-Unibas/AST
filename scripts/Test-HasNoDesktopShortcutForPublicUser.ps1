@@ -58,9 +58,11 @@ function Test-HasNoDesktopShortcutForPublicUser () {
 
         if ($DesktopShortcuts -ne 0){
             Write-Log -Message "Some Desktop-Shortcut found!" -Severity 2
-        } else { Write-Log -Message "No Desktop-Shortcuts found at all!" -Severity 1}
-
-        return $true
+            return $false
+        } else { 
+            Write-Log -Message "No Desktop-Shortcuts found at all!" -Severity 1
+            return $true
+        }
     } 
     
     end {

@@ -19,16 +19,25 @@ function Get-OutdatedPackages () {
     begin {
         $config = Read-ConfigFile
         $rootPath = (Get-Item -Path $PSScriptRoot).Parent.FullName
-        $resultsPath = Join-Path -Path $rootPath -ChildPath $Config.Logging.ResultsPath
+        $resultsFolder = $Config.Logging.ResultsPath
+        $resultsPath = Join-Path -Path $rootPath -ChildPath $resultsFolder
     } 
     
     process {
+        # Create resultsFileFolder if not available
+        if (-Not (Test-Path $resultsPath -ErrorAction SilentlyContinue)) {
+            $null = New-Item -ItemType directory -Path $resultsPath
+        }
+        
         # Get the latest results.json file
         $latestResultsJSONFile = Get-ChildItem -Path $resultsPath -Filter "*.json" | Sort-Object CreationTime | Select-Object -Last 1
-        $latestResultsJSONFilePath = Join-Path $latestResultsJSONFile.PSParentPath $latestResultsJSONFile.Name
-        $latestResultsJSON = Get-Content -Path $latestResultsJSONFilePath
-        $latestResults = $latestResultsJSON | ConvertFrom-Json
-        $latestCheckedPackages = $latestResults.PSObject.Properties.Name
+        
+        if ($latestResultsJSONFile){
+            $latestResultsJSONFilePath = Join-Path $latestResultsJSONFile.PSParentPath $latestResultsJSONFile.Name
+            $latestResultsJSON = Get-Content -Path $latestResultsJSONFilePath
+            $latestResults = $latestResultsJSON | ConvertFrom-Json
+            $latestCheckedPackages = $latestResults.PSObject.Properties.Name    
+        }
         
         # Get all outdated Chocolatey-Packages
         Write-Log "Looking for outdated packages." -Severity 1
@@ -62,7 +71,7 @@ function Get-OutdatedPackages () {
                 $uninstallExitMessage = $latestResults.$($packageNameToTest).UninstallExitMessage
                 $installationExitMessage = $latestResults.$($packageNameToTest).InstallExitMessage
 
-                # check if previous test failed and only move
+                # check if previous test failed
                 if (!(($updateExitMessage -eq "-") -and ($uninstallExitMessage -eq "-") -and ($installationExitMessage -eq "-"))){
                     $latestVersionToTest = $latestResults.$($packageNameToTest).LatestVersion
                     # Check for version to be sure that the same package was already tested!
@@ -89,6 +98,9 @@ function Get-OutdatedPackages () {
                             Continue
                         }
                     }
+                } else { # Rare usecase: if the previous tests did not fail but choco found outdated packages, there must have been a manual invervention. Try to run the testing-process for the specific software-update again in this case
+                    Write-Log "Package $packageNameToTest seems to be outdated by Chocolatey but the testings were successul in a previous run. Try to run the testing-process for $packageNameToTest again." -Severity 1    
+                    $getOutdatedPackages.Add($package)
                 }
                 
             } else {

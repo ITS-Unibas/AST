@@ -38,6 +38,9 @@ function Add-ToAllNewPackages () {
                     UninstallExitMessage = $($package.Value.UninstallExitMessage)
                     InstallExitCode = $($package.Value.InstallExitCode)
                     InstallExitMessage = $($package.Value.InstallExitMessage)
+                    Dependencies = $($package.Value.Dependencies)
+                    UninstallDependenciesExitCode = $($package.Value.UninstallDependenciesExitCode)
+                    UninstallDependenciesExitMessage = $($package.Value.UninstallDependenciesExitMessage)
                 }
             }
 

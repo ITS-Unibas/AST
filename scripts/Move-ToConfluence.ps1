@@ -34,8 +34,6 @@ function Move-ToConfluence {
         $confluenceLightGreen = $config.Application.ConfluenceLightGreen
         $confluenceLightRed = $config.Application.ConfluenceLightRed
         $confluenceLightYellow = $config.Application.ConfluenceLightYellow
-
-        Write-Log "Start uploading the Testing-Results to Confluence-page '$ConfluenceResultsPage'" -Severity 1
     }
 
     process {
@@ -44,6 +42,8 @@ function Move-ToConfluence {
             Write-Log "No JSON-File for Confluence-Upload found!" -Severity 3
             exit
         }
+
+        Write-Log "Start uploading the Testing-Results to Confluence-page '$ConfluenceResultsPage'" -Severity 1
 
         $json = Get-Content -Path $JsonFilePath | ConvertFrom-Json
 
@@ -84,12 +84,27 @@ function Move-ToConfluence {
         $currentPageBody = $currentPageContents.results[0].body.storage.value
         [int]$newPageVersion = $currentPageVersion + 1
 
-        # Template for the 'Status-Codes' table at the top of the results-page
-        $statusTable = "<table><tr><th>Status-Codes</th></tr><tr><td style='background-color: $($confluenceLightGreen)'>Update / Install and Uninstall successful</td></tr><tr><td style='background-color: $($confluenceLightYellow)'>Update / Install and Uninstall successful - BUT Has Desktop-Shortcut and/or multiple AppWiz-Entries</td></tr><tr><td style='background-color: $($confluenceLightRed)'>Update / Install and Uninstall NOT successful</td></tr></table>"
-        
         # Remove the 'Status-Codes' table, so that it is only shown once on the results-page
         $statusTablePattern = "<table.*>.*Status-Codes.*?</table>"
         $currentPageBody = $currentPageBody -replace $statusTablePattern, ""
+
+        # Template for the 'Status-Codes' table at the top of the results-page
+        $statusTable = @"
+        <table>
+            <tr>
+                <th>Status-Codes</th>
+            </tr>
+            <tr>
+                <td style='background-color: $($confluenceLightGreen)'>Update / Install and Uninstall successful</td>
+            </tr>
+            <tr>
+                <td style='background-color: $($confluenceLightYellow)'>Update / Install and Uninstall successful - BUT Has Desktop-Shortcut and/or multiple AppWiz-Entries</td>
+            </tr>
+            <tr>
+                <td style='background-color: $($confluenceLightRed)'>Update / Install and Uninstall NOT successful</td>
+            </tr>
+        </table>
+"@
 
         # Create a headline for the results
         $date = Get-Date
@@ -105,7 +120,25 @@ function Move-ToConfluence {
         $table = ""
         $tableContent = ""
 
-        $tableHeader = "<table><tr><th>Application Name</th><th>Current Version</th><th>Latest Version</th><th>Update Exit Code</th><th>Update Exit Message</th><th>Has NO Desktop Shortcut For Public User</th><th>Has NOT Multiple Add/Remove Entries</th><th>Uninstall Exit Code</th><th>Uninstall Exit Message</th><th>Install Exit Code</th><th>Install Exit Message</th></tr>"
+        $tableHeader = @"
+            <table>
+                <tr>
+                    <th>Application Name</th>
+                    <th>Current Version</th>
+                    <th>Latest Version</th>
+                    <th>Update Exit Code</th>
+                    <th>Update Exit Message</th>
+                    <th>Has NO Desktop Shortcut For Public User</th>
+                    <th>Has NOT Multiple Add/Remove Entries</th>
+                    <th>Dependencies</th>
+                    <th>Uninstall Dependencies Exit Code</th>
+                    <th>Uninstall Dependencies Exit Message</th>
+                    <th>Uninstall Exit Code</th>
+                    <th>Uninstall Exit Message</th>
+                    <th>Install Exit Code</th>
+                    <th>Install Exit Message</th>
+                </tr>
+"@        
 
         foreach ($package in $json.PSObject.Properties) {
             # replace the true or false statements in the JSON-file with the Empticons "(/)" or "(x)" in Confluence
@@ -116,6 +149,8 @@ function Move-ToConfluence {
             $UpdateExitMessage = ""
             $InstallExitMessage = ""
             $UninstallExitMessage = ""
+            $UninstallDependenciesExitMessage = ""
+            $dependencies = ""
 
             foreach ($line in ($package.Value.UpdateExitMessage)){
                 $UpdateExitMessage += "<p>$line</p>"
@@ -129,6 +164,14 @@ function Move-ToConfluence {
                 $UninstallExitMessage += "<p>$line</p>"
             }
 
+            foreach ($line in ($package.Value.UninstallDependenciesExitMessage)){
+                $UninstallDependenciesExitMessage += "<p>$line</p>"
+            }
+
+            foreach ($line in ($package.Value.Dependencies)){
+                $dependencies += "<p>$line</p>"
+            }
+
             # Set a background-color (green, yellow or red), depending on the testing results:
             # green: everything okay
             # yellow: Update and Uninstall / Install okay, but a Desktop-Shortcut or/and multiple AppWiz-Entries found
@@ -139,20 +182,38 @@ function Move-ToConfluence {
                 # Check if "HasNoDesktopShortcutForPublicUser" and "HasNotMultipleAddRemoveEntries" --> yes: green, no --> yellow
                 if (($package.Value.HasNoDesktopShortcutForPublicUser -eq $confluenceCheck) -and ($package.Value.HasNotMultipleAddRemoveEntries -eq $confluenceCheck)){
                     # green
-                    $tableContent += "<tr><td style='background-color: $($confluenceLightGreen)'>$($package.Name)</td><td style='background-color: $($confluenceLightGreen)'>$($package.Value.InstalledVersion)</td><td style='background-color: $($confluenceLightGreen)'>$($package.Value.LatestVersion)</td><td style='background-color: $($confluenceLightGreen)'>$($package.Value.UpdateExitCode)</td><td style='background-color: $($confluenceLightGreen)'>$($UpdateExitMessage)</td><td style='background-color: $($confluenceLightGreen)'>$($package.Value.HasNoDesktopShortcutForPublicUser)</td><td style='background-color: $($confluenceLightGreen)'>$($package.Value.HasNotMultipleAddRemoveEntries)</td><td style='background-color: $($confluenceLightGreen)'>$($package.Value.UninstallExitCode)</td><td style='background-color: $($confluenceLightGreen)'>$($UninstallExitMessage)</td><td style='background-color: $($confluenceLightGreen)'>$($package.Value.InstallExitCode)</td><td style='background-color: $($confluenceLightGreen)'>$($InstallExitMessage)</td></tr>"
+                    $color = $confluenceLightGreen
                 } else {
                     # yellow
-                    $tableContent += "<tr><td style='background-color: $($confluenceLightYellow)'>$($package.Name)</td><td style='background-color: $($confluenceLightYellow)'>$($package.Value.InstalledVersion)</td><td style='background-color: $($confluenceLightYellow)'>$($package.Value.LatestVersion)</td><td style='background-color: $($confluenceLightYellow)'>$($package.Value.UpdateExitCode)</td><td style='background-color: $($confluenceLightYellow)'>$($UpdateExitMessage)</td><td style='background-color: $($confluenceLightYellow)'>$($package.Value.HasNoDesktopShortcutForPublicUser)</td><td style='background-color: $($confluenceLightYellow)'>$($package.Value.HasNotMultipleAddRemoveEntries)</td><td style='background-color: $($confluenceLightYellow)'>$($package.Value.UninstallExitCode)</td><td style='background-color: $($confluenceLightYellow)'>$($UninstallExitMessage)</td><td style='background-color: $($confluenceLightYellow)'>$($package.Value.InstallExitCode)</td><td style='background-color: $($confluenceLightYellow)'>$($InstallExitMessage)</td></tr>"
+                    $confluenceLightYellow
                 }
             } else {
                 # red
-                $tableContent += "<tr><td style='background-color: $($confluenceLightRed)'>$($package.Name)</td><td style='background-color: $($confluenceLightRed)'>$($package.Value.InstalledVersion)</td><td style='background-color: $($confluenceLightRed)'>$($package.Value.LatestVersion)</td><td style='background-color: $($confluenceLightRed)'>$($package.Value.UpdateExitCode)</td><td style='background-color: $($confluenceLightRed)'>$($UpdateExitMessage)</td><td style='background-color: $($confluenceLightRed)'>$($package.Value.HasNoDesktopShortcutForPublicUser)</td><td style='background-color: $($confluenceLightRed)'>$($package.Value.HasNotMultipleAddRemoveEntries)</td><td style='background-color: $($confluenceLightRed)'>$($package.Value.UninstallExitCode)</td><td style='background-color: $($confluenceLightRed)'>$($UninstallExitMessage)</td><td style='background-color: $($confluenceLightRed)'>$($package.Value.InstallExitCode)</td><td style='background-color: $($confluenceLightRed)'>$($InstallExitMessage)</td></tr>"
+                $color = $confluenceLightRed
             }
-            # without background-colors: $tableContent += "<tr><td>$($package.Name)</td><td>$($package.Value.InstalledVersion)</td><td>$($package.Value.LatestVersion)</td><td>$($package.Value.UpdateExitCode)</td><td>$($package.Value.UpdateExitMessage)</td><td>$($package.Value.HasNoDesktopShortcutForPublicUser)</td><td>$($package.Value.HasNotMultipleAddRemoveEntries)</td><td>$($package.Value.UninstallExitCode)</td><td>$($package.Value.UninstallExitMessage)</td><td>$($package.Value.InstallExitCode)</td><td>$($package.Value.InstallExitMessage)</td></tr>"
+
+            $tableContent += Add-ConfluenceMainTable `
+                                    -ApplicationName $package.Name `
+                                    -PackageName $package.Name `
+                                    -InstalledVersion $package.Value.InstalledVersion `
+                                    -LatestVersion $package.Value.LatestVersion `
+                                    -UpdateExitCode $package.Value.UpdateExitCode `
+                                    -UpdateExitMessage $UpdateExitMessage `
+                                    -HasNoDesktopShortcutForPublicUser $package.Value.HasNoDesktopShortcutForPublicUser `
+                                    -HasNotMultipleAddRemoveEntries $package.Value.HasNotMultipleAddRemoveEntries `
+                                    -Dependencies $dependencies `
+                                    -UninstallDependenciesExitCode $package.Value.UninstallDependenciesExitCode `
+                                    -UninstallDependenciesExitMessage $UninstallDependenciesExitMessage `
+                                    -UninstallExitCode $package.Value.UninstallExitCode `
+                                    -UninstallExitMessage $UninstallExitMessage `
+                                    -InstallExitCode $package.Value.InstallExitCode `
+                                    -InstallExitMessage $InstallExitMessage `
+                                    -color $color
         }
 
         $tableEnd = "</table>"
-        $table = $tableHeader + $tableContent + $tableEnd
+        $underTable = "<p>The packaging Workflow took $global:packagingWorkflowDuration.</p>"
+        $table = $tableHeader + $tableContent + $tableEnd + $underTable
 
         # Set all body-info together into $pageContent
         $pageContent = $statusTable + $headline + $table + $currentPageBody

@@ -1,9 +1,9 @@
 function Add-ConfluenceMainTable {
     <#
     .SYNOPSIS
-        This function
+        This function alows a more generic way to create the needed HTML-table with all software-testing-results than it used to be
     .DESCRIPTION
-        
+        This function takes all information needed for creating a proper HTML-table to be uploaded to Confluence
     .NOTES
         FileName:    Create-ConfulenceMainTable.ps1
         Author:      Uwe Molnar
@@ -11,11 +11,8 @@ function Add-ConfluenceMainTable {
         Created:     2023-07-12
         Updated:     -
         Version:     1.0.0
-
     .PARAMETER
-        
-    .EXAMPLE
-        
+        All information nested in the results-json-file, that is collection during a software-testing-run
     #>
     param (
         $PackageName,

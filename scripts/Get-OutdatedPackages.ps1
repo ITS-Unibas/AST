@@ -99,7 +99,7 @@ function Get-OutdatedPackages () {
                         }
                     }
                 } else { # Rare usecase: if the previous tests did not fail but choco found outdated packages, there must have been a manual invervention. Try to run the testing-process for the specific software-update again in this case
-                    Write-Log "Package $packageNameToTest seems to be outdated by Chocolatey but the testings were successul in a previous run. Try to run the testing-process for $packageNameToTest again." -Severity 1    
+                    Write-Log "Package $packageNameToTest seems to be outdated by Chocolatey but the testings were successful in a previous run. Try to run the testing-process for $packageNameToTest again." -Severity 1    
                     $getOutdatedPackages.Add($package)
                 }
                 

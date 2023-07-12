@@ -64,14 +64,21 @@ function Start-AutomatedSoftwareTesting {
                     UninstallExitMessage = ""
                     InstallExitCode = ""
                     InstallExitMessage = ""
+                    Dependencies = @()
+                    UninstallDependenciesExitCode = @()
+                    UninstallDependenciesExitMessage = @()
                 }
                 
+                # Get package dependencies
+                $dependencies = Get-PackageDependencies -packageName $outdatedPackageName
+
                 $timeStamp = (Get-Date -Format 'MM/dd/yyyy HH:mm:ss').ToString() -replace "\.", "/"
                 $newPackage.TimeStamp = $timeStamp
                 $newPackage.PackageName = $outdatedPackageName
                 $newPackage.InstalledVersion = $outdatedPackageInstalledVersion
                 $newPackage.LatestVersion = $outdatedPackageLatestVersion
-
+                $newPackage.Dependencies = $dependencies
+                
                 # Update the outdated package
                 $updateResult = Install-SWPackage -Package $outdatedPackageName -update
 
@@ -107,6 +114,28 @@ function Start-AutomatedSoftwareTesting {
                         $newPackage.HasNotMultipleAddRemoveEntries = "false"
                     }
 
+                    # Check if there are dependencies for the package to be removed befor uninstalling the package itself
+                    if ($newPackage.Dependencies -ne "-"){
+
+                        Write-Log -Message "Found dependencies for $($newPackage.PackageName):" -Severity 0
+                        foreach ($dependency in $newPackage.Dependencies){
+                            Write-Log -Message $dependency -Severity 0
+                        }
+
+                        # Uninstall all dependencies
+                        foreach ($dependency in $newPackage.Dependencies){
+                            $dependencyPackageName = $dependency
+                        
+                            $uninstallResult = Uninstall-SWPackage -packageName $dependencyPackageName
+
+                            $newPackage.UninstallDependenciesExitCode += $uninstallResult.ExitCode
+                            $newPackage.UninstallDependenciesExitMessage += $uninstallResult.Message
+                        }            
+                    } else {
+                        $newPackage.UninstallDependenciesExitCode = "-"
+                        $newPackage.UninstallDependenciesExitMessage = "-"
+                    }
+
                     # Uninstall the updated package to see if an installation process succeeds with a previous version installed
                     $returnUninstallation = Uninstall-SWPackage -packageName $outdatedPackageName
 
@@ -118,6 +147,15 @@ function Start-AutomatedSoftwareTesting {
     
                     $newPackage.InstallExitCode = $installResult.ExitCode
                     $newPackage.InstallExitMessage = $installResult.Message
+
+                    # Install all dependencies again to be ready for the next update-testing
+                    if ($newPackage.Dependencies -ne "-"){
+                        foreach ($dependency in $newPackage.Dependencies){
+                            $dependencyPackageName = $dependency
+                        
+                            Install-SWPackage -Package $dependencyPackageName
+                        }            
+                    }
 
                     # Write all results to $newPackages
                     $newPackages.Add($newPackage.PackageName, $newPackage)
@@ -131,6 +169,10 @@ function Start-AutomatedSoftwareTesting {
                     $newPackage.UninstallExitMessage = "-"
                     $newPackage.InstallExitCode = "-"
                     $newPackage.InstallExitMessage = "-"
+                    $newPackage.Dependencies = "-"
+                    $newPackage.UninstallDependenciesExitCode = "-"
+                    $newPackage.UninstallDependenciesExitMessage = "-"
+
                     
                     $newPackages.Add($newPackage.PackageName, $newPackage)
                     continue
@@ -138,7 +180,7 @@ function Start-AutomatedSoftwareTesting {
             }
         }
         
-        # Add all not-outdated Packages (= packages that failed in the last run) to the  $newPackages-Array
+        # Add all not-outdated Packages (= packages that failed in the last run) to the $newPackages-Array
         if ($notOutdatedPackages.Count -ne 0){
             $oldPackages = @{}
 
@@ -215,6 +257,9 @@ function Start-AutomatedSoftwareTesting {
             $resultsFilePath = Join-Path -Path $resultsPath -ChildPath "$($Config.Logging.ResultsLogPrefix)_$(Get-Date -Format yyyyMMdd_HHmmss).json"
             $allNewPackages | ConvertTo-Json | Out-File $resultsFilePath
         }
+
+        $global:packagingWorkflowDuration = New-TimeSpan -Start $StartTime -End (Get-Date)
+        Write-Log "The packaging Workflow took $global:packagingWorkflowDuration." -Severity 1
 
         # Write results to Confluence page only if new packages were tested
         if ($outdatedPackages.Count -ne 0){

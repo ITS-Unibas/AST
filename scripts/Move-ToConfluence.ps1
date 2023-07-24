@@ -85,7 +85,7 @@ function Move-ToConfluence {
         [int]$newPageVersion = $currentPageVersion + 1
 
         # Remove the 'Status-Codes' table, so that it is only shown once on the results-page
-        $statusTablePattern = "<table.*>.*Status-Codes.*?</table>"
+        $statusTablePattern = "<table>([\s\S]*?)Status-Codes([\s\S]*?)<\/table>"
         $currentPageBody = $currentPageBody -replace $statusTablePattern, ""
 
         # Template for the 'Status-Codes' table at the top of the results-page

@@ -25,8 +25,13 @@ function Test-HasNotMultipleAppWizEntries () {
         Write-Log -Message "Searching for multiple App-Wizard Entries for '$packageName'..." -Severity 0
 
         function SearchRegistry($package) {
-            $entries = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*" | Where-Object {($_.DisplayName -eq "$package")}
-            if ($entries.Count -gt 1) {
+            $local_key = Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" | Where-Object {($_.DisplayName -eq "$package")}
+            $machine_key = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*" | Where-Object {($_.DisplayName -eq "$package")}
+            $machine_key6432 = Get-ItemProperty "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" | Where-Object {($_.DisplayName -eq "$package")}
+
+            $entries = $local_key, $machine_key, $machine_key6432
+
+            if (($entries.Displayname).Count -gt 1) {
                 Write-Log -Message "Multiple App-Wizard Entries found for '$packageName'!" -Severity 2
                 return $false
             } else {

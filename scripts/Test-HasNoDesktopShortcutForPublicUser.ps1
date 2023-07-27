@@ -36,6 +36,8 @@ function Test-HasNoDesktopShortcutForPublicUser () {
         $shortcutNames = @(
             $shortcutName,
             (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*" | Where-Object {$_.DisplayName -like "*$packageName*"}).DisplayName,
+            (Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" | Where-Object {$_.DisplayName -like "*$packageName*"}).DisplayName,
+            (Get-ItemProperty "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" | Where-Object {$_.DisplayName -like "*$packageName*"}).DisplayName,
             $originalName
         )
 

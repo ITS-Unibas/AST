@@ -185,7 +185,7 @@ function Move-ToConfluence {
                     $color = $confluenceLightGreen
                 } else {
                     # yellow
-                    $confluenceLightYellow
+                    $color = $confluenceLightYellow
                 }
             } else {
                 # red

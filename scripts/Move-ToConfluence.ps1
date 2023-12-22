@@ -19,7 +19,10 @@ function Move-ToConfluence {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory = $true)]
-        [string]$JsonFilePath
+        [string]$JsonFilePath,
+
+        [Parameter(Mandatory = $false)]
+        [String[]]$DesktopShortcuts
     )
 
     begin {
@@ -213,6 +216,15 @@ function Move-ToConfluence {
 
         $tableEnd = "</table>"
         $underTable = "<p>The packaging Workflow took $global:packagingWorkflowDuration.</p>"
+
+        # Add list of all Desktop-Shortcuts to the results-page if there are any
+        if ($DesktopShortcuts) {
+            foreach ($shortcut in $DesktopShortcuts) {
+                $listOfDesktopShortcuts += "<p><i>$shortcut</i></p>"
+            }
+            $undertable += "<p><u>Found the following Desktop-Shortcuts for the public user:</u></p>" + $listOfDesktopShortcuts
+        }
+
         $table = $tableHeader + $tableContent + $tableEnd + $underTable
 
         # Set all body-info together into $pageContent

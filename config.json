@@ -2,6 +2,8 @@
     "Application": {
         "ConfluenceResultsPage": "",
         "ConfluencePageTitle": "",
+		"ConfluenceResultsPageArchiv": "",
+		"ConfluencePageTitleArchiv": "",		
         "ConfluenceSpaceKey": "",
         "ConfluenceBaseURL": "",
         "ConfluenceBearerToken": "",

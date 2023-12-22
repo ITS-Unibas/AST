@@ -95,7 +95,7 @@ function Start-AutomatedSoftwareTesting {
                         Write-Log -Message "No original Softwarename found for: $($newPackage.PackageName). Results may not be accurate enough!" -Severity 1
                     }
 
-                    $returnHDSFPU = Test-HasNoDesktopShortcutForPublicUser -packageName $outdatedPackageName -originalName $originalSoftwareName
+                    $returnHDSFPU, $DesktopShortcuts = Test-HasNoDesktopShortcutForPublicUser -packageName $outdatedPackageName -originalName $originalSoftwareName
 
                     # Check if NO desktop-Shortcut was found
                     if ($returnHDSFPU){
@@ -258,15 +258,17 @@ function Start-AutomatedSoftwareTesting {
             $allNewPackages | ConvertTo-Json | Out-File $resultsFilePath
         }
 
-        $global:packagingWorkflowDuration = New-TimeSpan -Start $StartTime -End (Get-Date)
-        Write-Log "The packaging Workflow took $global:packagingWorkflowDuration." -Severity 1
+        $runTime = New-TimeSpan -Start $StartTime -End (Get-Date)
+        $global:packagingWorkflowDuration = "{0:d2}:{1:d2}:{2:d2}" -f ($runTime.Hours), ($runTime.Minutes), ($runTime.Seconds)
+        Write-Log "The packaging Workflow took $global:packagingWorkflowDuration h." -Severity 1
 
         # Write results to Confluence page only if new packages were tested
         if ($outdatedPackages.Count -ne 0){
-            Move-ToConfluence -JsonFilePath $resultsFilePath
+            Move-ToConfluence -JsonFilePath $resultsFilePath -DesktopShortcuts $DesktopShortcuts
         }
 
-        $Duration = New-TimeSpan -Start $StartTime -End (Get-Date)
+        $runTimeWithConfluenceUpload = New-TimeSpan -Start $StartTime -End (Get-Date)
+        $Duration = "{0:d2}:{1:d2}:{2:d2}" -f ($runTimeWithConfluenceUpload.Hours), ($runTimeWithConfluenceUpload.Minutes), ($runTimeWithConfluenceUpload.Seconds)
         Write-Log "The process took $Duration. Finished." -Severity 1
     }
 }

@@ -56,11 +56,12 @@ function Test-HasNoDesktopShortcutForPublicUser () {
 
         Write-Log -Message "No Desktop-Shortcut for '$packageName' found! Trying to be more aggressiv..." -Severity 0
 
-        $DesktopShortcuts = (Get-ChildItem -Path "C:\Users\Public\Desktop\").Length
-
-        if ($DesktopShortcuts -ne 0){
+        $DesktopShortcuts = (Get-ChildItem -Path "C:\Users\Public\Desktop\" -Filter "*.lnk").Name
+        $DesktopShortcutsCount = (Get-ChildItem -Path "C:\Users\Public\Desktop\" -Filter "*.lnk").Length
+        
+        if ($DesktopShortcutsCount -ne 0){
             Write-Log -Message "Some Desktop-Shortcut found!" -Severity 2
-            return $false
+            return $false, $DesktopShortcuts
         } else { 
             Write-Log -Message "No Desktop-Shortcuts found at all!" -Severity 1
             return $true

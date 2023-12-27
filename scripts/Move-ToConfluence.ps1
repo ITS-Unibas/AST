@@ -28,8 +28,7 @@ function Move-ToConfluence {
     begin {
         $config = Read-ConfigFile        
         $confluenceBaseURL = $config.Application.ConfluenceBaseURL
-        $ConfluenceResultsPage = $config.Application.ConfluenceResultsPage
-        $confluencePageTitle = $config.Application.ConfluencePageTitle
+        $confluenceResultsPageTitle = $config.Application.ConfluenceResultsPageTitle
         $confluenceSpaceKey = $config.Application.ConfluenceSpaceKey
         $confluenceBearerToken = $config.Application.ConfluenceBearerToken
         $confluenceCheck = $config.Application.ConfluenceCheckEmoticon # '<ac:emoticon ac:name="tick" />'
@@ -46,7 +45,7 @@ function Move-ToConfluence {
             exit
         }
 
-        Write-Log "Start uploading the Testing-Results to Confluence-page '$ConfluenceResultsPage'" -Severity 1
+        Write-Log "Start uploading the Testing-Results to Confluence-page '$confluenceResultsPageTitle'" -Severity 1
 
         $json = Get-Content -Path $JsonFilePath | ConvertFrom-Json
 
@@ -56,11 +55,13 @@ function Move-ToConfluence {
             "Authorization" = "Bearer $confluenceBearerToken"
         }
 
-        # Check if the page exists
+        # Check if the page exists and get Body for Get-Request to get the version and the Body of the confluence page
         $pageUrl = "$($confluenceBaseURL)/content"
         $pageQueryParams = @{
-            title = $confluencePageTitle
+            title = $confluenceResultsPageTitle
             ConfluenceSpaceKey = $ConfluenceSpaceKey
+            expand = "version,body.view,body.storage"
+            status = "current"
         }
 
         try {
@@ -69,20 +70,10 @@ function Move-ToConfluence {
                 $pageId = $pageResult.results[0].id
             }
         } catch {
-            Write-Log "Error: Confluence-Page '$ConfluenceResultsPage' seems not exist!" -Severity 3
+            Write-Log "Error: Confluence-Page '$confluenceResultsPageTitle' seems not to exist!" -Severity 3
             exit
         }
 
-        # Body for Get-Request to get the version and the Body of the confluence page
-        $pageUrl = "$($confluenceBaseURL)/content"
-        $pageQueryParams = @{
-            title = $confluencePageTitle
-            ConfluenceSpaceKey = $ConfluenceSpaceKey
-            expand = "version,body.view,body.storage"
-            status = "current"
-        }
-
-        $currentPageContents = Invoke-RestMethod -Uri $pageUrl -Headers $headers -Method Get -Body $pageQueryParams
         [int]$currentPageVersion = $currentPageContents.results[0].version.number
         $currentPageBody = $currentPageContents.results[0].body.storage.value
         [int]$newPageVersion = $currentPageVersion + 1
@@ -233,7 +224,7 @@ function Move-ToConfluence {
         # Build the REST API request body to input the results
         $body = @{
             type = "page"
-            title = $confluencePageTitle
+            title = $confluenceResultsPageTitle
             space = @{
                 key = $ConfluenceSpaceKey
             }

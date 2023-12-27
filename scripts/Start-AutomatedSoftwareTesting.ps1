@@ -18,6 +18,8 @@ function Start-AutomatedSoftwareTesting {
 
     begin {
         Write-Log -Message "Starting automated Software-Testing" -Severity 1
+        # Moves the currnet results to Archive after each 1st day of the month
+        Move-ResultsToArchive
         
         $StartTime = Get-Date
         $config = Read-ConfigFile

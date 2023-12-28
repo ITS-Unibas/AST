@@ -1,7 +1,7 @@
 {
     "Application": {
         "ConfluenceResultsPageTitle": "",
-        "ConfluenceArchivePageTitle": "",		
+		"ConfluenceArchivePageTitle": "",		
         "ConfluenceSpaceKey": "",
         "ConfluenceBaseURL": "",
         "ConfluenceBearerToken": "",

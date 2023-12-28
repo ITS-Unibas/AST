@@ -18,7 +18,10 @@ function Start-AutomatedSoftwareTesting {
 
     begin {
         Write-Log -Message "Starting automated Software-Testing" -Severity 1
-        
+
+        # Move the current results to Archive (each 1st day of the month)
+        Move-ResultsToArchive
+
         $StartTime = Get-Date
         $config = Read-ConfigFile
         $rootPath = (Get-Item -Path $PSScriptRoot).Parent.FullName
@@ -31,6 +34,12 @@ function Start-AutomatedSoftwareTesting {
         $foundPackages = Get-OutdatedPackages
         $outdatedPackages = $foundPackages.outdatedPackages # Needed to write it like this because $outdatedPackages returns doubled contents! 
         $notOutdatedPackages = $foundPackages.notOutdatedPackages
+
+        # Add new packages (from add-packages.txt list) for AST to be tested
+        $newManuallyAddedPackages = Add-NewPackagesForTesting
+        if ($newManuallyAddedPackages.packages.Count -ne 0){
+            $outdatedPackages = $outdatedPackages + $newManuallyAddedPackages.packages
+        }
 
         if ($outdatedPackages.Count -eq 0){
             Write-Log -Message "No outdated packages found!" -Severity 0
@@ -47,7 +56,7 @@ function Start-AutomatedSoftwareTesting {
                 $outdatedPackageName = $outdatedPackage.PackageName
                 $outdatedPackageInstalledVersion = $outdatedPackage.InstalledVersion
                 $outdatedPackageLatestVersion = $outdatedPackage.LatestVersion
-                # Check if outdated Packages found and give a meaningful output (processing package x of y)
+                # Check if outdated Packages were found and give a meaningful output (processing package x of y)
                 Write-Log -Message "Starting automated Software-Testing for: $outdatedPackageName (previous version: $outdatedPackageInstalledVersion - new version: $outdatedPackageLatestVersion)" -Severity 1
 
                 # Container for results
@@ -95,7 +104,7 @@ function Start-AutomatedSoftwareTesting {
                         Write-Log -Message "No original Softwarename found for: $($newPackage.PackageName). Results may not be accurate enough!" -Severity 1
                     }
 
-                    $returnHDSFPU = Test-HasNoDesktopShortcutForPublicUser -packageName $outdatedPackageName -originalName $originalSoftwareName
+                    $returnHDSFPU, $DesktopShortcuts = Test-HasNoDesktopShortcutForPublicUser -packageName $outdatedPackageName -originalName $originalSoftwareName
 
                     # Check if NO desktop-Shortcut was found
                     if ($returnHDSFPU){
@@ -180,7 +189,7 @@ function Start-AutomatedSoftwareTesting {
             }
         }
         
-        # Add all not-outdated Packages (= packages that failed in the last run) to the $newPackages-Array
+        # Add all not-outdated Packages (= packages that failed in the last run) to the $oldPackages-Array
         if ($notOutdatedPackages.Count -ne 0){
             $oldPackages = @{}
 
@@ -258,15 +267,17 @@ function Start-AutomatedSoftwareTesting {
             $allNewPackages | ConvertTo-Json | Out-File $resultsFilePath
         }
 
-        $global:packagingWorkflowDuration = New-TimeSpan -Start $StartTime -End (Get-Date)
-        Write-Log "The packaging Workflow took $global:packagingWorkflowDuration." -Severity 1
+        $runTime = New-TimeSpan -Start $StartTime -End (Get-Date)
+        $global:packagingWorkflowDuration = "{0:d2}:{1:d2}:{2:d2}" -f ($runTime.Hours), ($runTime.Minutes), ($runTime.Seconds)
+        Write-Log "The packaging Workflow took $global:packagingWorkflowDuration h." -Severity 1
 
         # Write results to Confluence page only if new packages were tested
         if ($outdatedPackages.Count -ne 0){
-            Move-ToConfluence -JsonFilePath $resultsFilePath
+            Move-ToConfluence -JsonFilePath $resultsFilePath -DesktopShortcuts $DesktopShortcuts
         }
 
-        $Duration = New-TimeSpan -Start $StartTime -End (Get-Date)
+        $runTimeWithConfluenceUpload = New-TimeSpan -Start $StartTime -End (Get-Date)
+        $Duration = "{0:d2}:{1:d2}:{2:d2}" -f ($runTimeWithConfluenceUpload.Hours), ($runTimeWithConfluenceUpload.Minutes), ($runTimeWithConfluenceUpload.Seconds)
         Write-Log "The process took $Duration. Finished." -Severity 1
     }
 }

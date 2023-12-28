@@ -1,25 +1,25 @@
 {
     "Application": {
-        "ConfluenceResultsPage": "",
-        "ConfluencePageTitle": "",
-        "ConfluenceSpaceKey": "",
-        "ConfluenceBaseURL": "",
-        "ConfluenceBearerToken": "",
-        "ConfluenceCheckEmoticon": "<ac:emoticon ac:name=\"tick\"/>",
-        "ConfluenceCrossEmoticon": "<ac:emoticon ac:name=\"cross\"/>",
-        "ConfluenceLightGreen": "#abf5d1",
-        "ConfluenceLightRed": "#ffbdad",
-        "ConfluenceLightYellow": "#fff0b3",
-        "RepositoryManagerAPIBaseUrl": "",
-        "RepositoryManagerAPIUser": "",
-        "RepostoryManagerAPIPassword": ""        
+		"ConfluenceResultsPageTitle": "",
+		"ConfluenceArchivePageTitle": "",		
+		"ConfluenceSpaceKey": "",
+		"ConfluenceBaseURL": "",
+		"ConfluenceBearerToken": "",
+		"ConfluenceCheckEmoticon": "<ac:emoticon ac:name=\"tick\"/>",
+		"ConfluenceCrossEmoticon": "<ac:emoticon ac:name=\"cross\"/>",
+		"ConfluenceLightGreen": "#abf5d1",
+		"ConfluenceLightRed": "#ffbdad",
+		"ConfluenceLightYellow": "#fff0b3",
+		"RepositoryManagerAPIBaseUrl": "",
+		"RepositoryManagerAPIUser": "",
+		"RepostoryManagerAPIPassword": ""        
     },
     "Logging": {
-        "LogPath": "logs",
-        "LogFileNamePrefix": "automated_software_testing_log",
-        "MaxLogFiles": 10,
-        "ResultsPath": "results",
-        "ResultsLogPrefix": "results_log",
-        "MaxResultFiles": 50
+		"LogPath": "logs",
+		"LogFileNamePrefix": "automated_software_testing_log",
+		"MaxLogFiles": 10,
+		"ResultsPath": "results",
+		"ResultsLogPrefix": "results_log",
+		"MaxResultFiles": 50
     }
 }

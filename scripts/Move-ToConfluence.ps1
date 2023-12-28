@@ -74,8 +74,8 @@ function Move-ToConfluence {
             exit
         }
 
-        [int]$currentPageVersion = $currentPageContents.results[0].version.number
-        $currentPageBody = $currentPageContents.results[0].body.storage.value
+        [int]$currentPageVersion = $pageResult.results[0].version.number
+        $currentPageBody = $pageResult.results[0].body.storage.value
         [int]$newPageVersion = $currentPageVersion + 1
 
         # Remove the 'Status-Codes' table, so that it is only shown once on the results-page

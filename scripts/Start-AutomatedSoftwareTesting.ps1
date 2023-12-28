@@ -18,9 +18,10 @@ function Start-AutomatedSoftwareTesting {
 
     begin {
         Write-Log -Message "Starting automated Software-Testing" -Severity 1
-        # Moves the currnet results to Archive after each 1st day of the month
+
+        # Move the current results to Archive (each 1st day of the month)
         Move-ResultsToArchive
-        
+
         $StartTime = Get-Date
         $config = Read-ConfigFile
         $rootPath = (Get-Item -Path $PSScriptRoot).Parent.FullName
@@ -33,6 +34,12 @@ function Start-AutomatedSoftwareTesting {
         $foundPackages = Get-OutdatedPackages
         $outdatedPackages = $foundPackages.outdatedPackages # Needed to write it like this because $outdatedPackages returns doubled contents! 
         $notOutdatedPackages = $foundPackages.notOutdatedPackages
+
+        # Add new packages (from add-packages.txt list) for AST to be tested
+        $newManuallyAddedPackages = Add-NewPackagesForTesting
+        if ($newManuallyAddedPackages.packages.Count -ne 0){
+            $outdatedPackages = $outdatedPackages + $newManuallyAddedPackages.packages
+        }
 
         if ($outdatedPackages.Count -eq 0){
             Write-Log -Message "No outdated packages found!" -Severity 0
@@ -49,7 +56,7 @@ function Start-AutomatedSoftwareTesting {
                 $outdatedPackageName = $outdatedPackage.PackageName
                 $outdatedPackageInstalledVersion = $outdatedPackage.InstalledVersion
                 $outdatedPackageLatestVersion = $outdatedPackage.LatestVersion
-                # Check if outdated Packages found and give a meaningful output (processing package x of y)
+                # Check if outdated Packages were found and give a meaningful output (processing package x of y)
                 Write-Log -Message "Starting automated Software-Testing for: $outdatedPackageName (previous version: $outdatedPackageInstalledVersion - new version: $outdatedPackageLatestVersion)" -Severity 1
 
                 # Container for results
@@ -182,7 +189,7 @@ function Start-AutomatedSoftwareTesting {
             }
         }
         
-        # Add all not-outdated Packages (= packages that failed in the last run) to the $newPackages-Array
+        # Add all not-outdated Packages (= packages that failed in the last run) to the $oldPackages-Array
         if ($notOutdatedPackages.Count -ne 0){
             $oldPackages = @{}
 

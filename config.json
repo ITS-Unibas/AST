@@ -12,7 +12,8 @@
 		"ConfluenceLightYellow": "#fff0b3",
 		"RepositoryManagerAPIBaseUrl": "",
 		"RepositoryManagerAPIUser": "",
-		"RepostoryManagerAPIPassword": ""        
+		"RepostoryManagerAPIPassword": "",
+		"WishlistPath": ""
     },
     "Logging": {
 		"LogPath": "logs",

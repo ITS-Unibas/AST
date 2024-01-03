@@ -26,7 +26,8 @@ function Start-AutomatedSoftwareTesting {
         $config = Read-ConfigFile
         $rootPath = (Get-Item -Path $PSScriptRoot).Parent.FullName
         $resultsPath = Join-Path -Path $rootPath -ChildPath $Config.Logging.ResultsPath
-        $maxResultFiles = $Config.Logging.MaxResultFiles
+        $maxResultFiles = $config.Logging.MaxResultFiles
+        $astWishlist = $config.Application.WishlistPath
     }
 
     process {
@@ -36,7 +37,7 @@ function Start-AutomatedSoftwareTesting {
         $notOutdatedPackages = $foundPackages.notOutdatedPackages
 
         # Add new packages (from add-packages.txt list) for AST to be tested
-        $newManuallyAddedPackages = Add-NewPackagesForTesting
+        $newManuallyAddedPackages = Add-NewPackagesForTesting -wishlist $astWishlist
         if ($newManuallyAddedPackages.packages.Count -ne 0){
             $outdatedPackages = $outdatedPackages + $newManuallyAddedPackages.packages
         }

@@ -2,15 +2,16 @@ function Move-ResultsToArchive {
     <#
     .SYNOPSIS
         This function moves the logs of AST from the current Results-Page to a specified Confluence-Archive-Page to reduce the size of the Results-Page and improve its performance.
+        This function runs every 1st day of the month. All current results of AST are moved to a monthly Archive-Page named e. g. "2024-02 [AST-Archive Prod/Test]".
     .DESCRIPTION
         Details for Confluence REST-API https://docs.atlassian.com/atlassian-confluence/REST/6.6.0/
     .NOTES
         FileName:    Move-ResultsToArchive.ps1
         Author:      Uwe Molnar
         Contact:     uwe.molnar@unibas.ch
-        Created:     2023-12-27
+        Created:     2024-02-19
         Updated:     -
-        Version:     1.0.0
+        Version:     2.0.0
     .EXAMPLE
         PS> Move-ResultsToArchive
     #>
@@ -25,15 +26,17 @@ function Move-ResultsToArchive {
         $confluenceLightGreen = $config.Application.ConfluenceLightGreen
         $confluenceLightRed = $config.Application.ConfluenceLightRed
         $confluenceLightYellow = $config.Application.ConfluenceLightYellow
+        $system = $config.Application.System
     }
 
     process {
-        # Get the current day of the month
+        # Get the current day of the month, the current month and the current year
         $today = Get-Date
         $dayOfMonth = $today.Day
+        $currentMonth = $today.Month
+        $currentYear = $today.Year
 
-        # Get the date of the last change of the Archive-Page
-        # Set up the REST API request headers
+        # Set up the REST API request headers for all API requests
         $headers = @{
             "Content-Type" = "application/json"
             "Authorization" = "Bearer $confluenceBearerToken"
@@ -41,34 +44,68 @@ function Move-ResultsToArchive {
 
         $pageUrl = "$($confluenceBaseURL)/content"
 
-        # Check if Archive-Page exists
+        # Check if main Archive-Page and montly Archive-Page exist
+        ## Check main Achive-Page
         $archivePageQueryParams = @{
             title = $confluenceArchivePageTitle
             ConfluenceSpaceKey = $ConfluenceSpaceKey
-            expand = "version,body.view,body.storage"
+            expand = "version"
             status = "current"
         }
 
-        try {
-            $currentArchivePageContents = Invoke-RestMethod -Uri $pageUrl -Headers $headers -Method Get -Body $archivePageQueryParams
-            if ($currentArchivePageContents.results) {
-                $archivePageId = $currentArchivePageContents.results[0].id
-            }
-        } catch {
-            Write-Log "Error: Confluence-Page '$confluenceArchivePageTitle' seems not to exist!" -Severity 3
+        $currentArchivePageContents = Invoke-RestMethod -Uri $pageUrl -Headers $headers -Method Get -Body $archivePageQueryParams
+        
+        if (!($currentArchivePageContents.results)) {
+            Write-Log "Error: Confluence-Page '$confluenceArchivePageTitle' seems not to exist - Exit!" -Severity 3
             exit
         }
+        
+        ## Check montly Archive-Page ($currentMonthPageContents would be empty if the page does not exist yet)
+        $idArchiveMainPage = $currentArchivePageContents.results.id
+        $monthlyPageTitle = "$($currentYear)-$($currentMonth.ToString("00")) [AST-Archive $system]"
 
-        [datetime]$lastChangeDateArchivePage = $currentArchivePageContents.results[0].version.when
+        $monthlyPageQueryParams = @{
+            title = $monthlyPageTitle
+            ConfluenceSpaceKey = $ConfluenceSpaceKey
+            expand = "version"
+            status = "current"
+        }
 
-        # Move the logs of AST Results-Page to the Archive-Page if it is the 1st of the montg abd the page-edit-date is older than the 1st of the month
-        if (($dayOfMonth -eq 1) -and ($lastChangeDateArchivePage -lt ($today.Date))) {
-            Write-Log "--- It's the 1st day of the month. Start moving the logs of AST Results-Page to the Archive-Page ---" -Severity 1
+        $currentMonthPageContents = Invoke-RestMethod -Uri $pageUrl -Headers $headers -Method Get -Body $monthlyPageQueryParams
 
-            # Set data from the Archive-Page
-            [int]$currentArchivePageVersion = $currentArchivePageContents.results[0].version.number
-            $currentArchivePageBody = $currentArchivePageContents.results[0].body.storage.value
-            [int]$newArchivePageVersion = $currentArchivePageVersion + 1
+        # Move the logs of AST Results-Page to the montly Archive-Page if it is the 1st of the month and if the current Month-Page doas not exist yet. If the page exists the backup is already done.
+        if (($dayOfMonth -eq 1) -and (!($currentMonthPageContents.Results))) {
+            Write-Log "--- It's the 1st day of the month. Start moving the logs of AST Results-Page to the Archive-Page '$monthlyPageTitle' ---" -Severity 1
+
+            # Create monthly backup-Wiki-Page
+            Write-Log "Confluence-Page for $($currentYear)-$($currentMonth.ToString("00")) seems not to exist - Create it!" -Severity 2
+            
+            $bodyMonthlyPage = @{
+                type  = "page"
+                title = $monthlyPageTitle
+                space = @{key = $ConfluenceSpaceKey}
+                ancestors = @(@{id = $idArchiveMainPage})
+                body  = @{
+                    storage = @{
+                        value          = ""
+                        representation = "storage"
+                    }
+                }
+            } | ConvertTo-Json
+            
+            try {
+                $currentMonthPageContents = Invoke-RestMethod -Uri $pageUrl -Headers $headers -Method Post -Body $bodyMonthlyPage
+            } catch {
+                Write-Log "Failed to create Confluence-Page for $($currentYear)-$($currentMonth.ToString("00")) `n $($_.Exception.Message)" -Severity 3
+                exit
+            }
+
+            Write-Log "Confluence-Page for $($currentYear)-$($currentMonth.ToString("00")) successfully created!" -Severity 1         
+
+            # Set data from the Archive-Month-Page
+            [long]$idArchiveMonthPage = $currentMonthPageContents.id  
+            [int]$currentMonthPageVersion = $currentMonthPageContents.version.number
+            [int]$newMonthPageVersion = $currentMonthPageVersion  + 1
 
             # Check if the AST Results-Page exists and get its contents
             $resultsPageQueryParams = @{
@@ -77,56 +114,46 @@ function Move-ResultsToArchive {
                 expand = "version,body.view,body.storage"
                 status = "current"
             }
-
-            try {
-                $pageResult = Invoke-RestMethod -Uri $pageUrl -Headers $headers -Method Get -Body $resultsPageQueryParams
-                if ($pageResult.results) {
-                    $pageId = $pageResult.results[0].id
-                }
-            } catch {
+      
+            $pageResult = Invoke-RestMethod -Uri $pageUrl -Headers $headers -Method Get -Body $resultsPageQueryParams
+            
+            if ($pageResult.results) {
+                $pageId = $pageResult.results[0].id
+            }else{
                 Write-Log "Error: Confluence-Page '$confluenceResultsPageTitle' seems not to exist!" -Severity 3
                 exit
             }
 
-            # Remove the 'Status-Codes' table from the Archive-Page, so that it is only shown once on after update
-            $statusTablePattern = "<table.*>([\s\S]*?)Status-Codes([\s\S]*?)<\/table>"
-            $currentArchivePageBody = $currentArchivePageBody -replace $statusTablePattern, ""
-
             # Get the contents of the AST Results-Page
             $currentPageBody = $pageResult.results[0].body.storage.value
-
-            # Put the contents of the AST Results-Page on top of the Confluence-Archive-Page
-            $newArchivePageContent = $currentPageBody + $currentArchivePageBody
             
-            # Build the REST API request body for the Archive-Page
+            # Build the REST API request body for the monthly Archive-Page
             $body = @{
                 type = "page"
-                title = $confluenceArchivePageTitle
-                space = @{
-                    key = $ConfluenceSpaceKey
-                }
+                title = $monthlyPageTitle
+                space = @{key = $ConfluenceSpaceKey}
                 body = @{
                     storage = @{
-                        value = $newArchivePageContent
+                        value = $currentPageBody
                         representation = "storage"
                     }
                 }
                 version = @{
-                    number = "$newArchivePageVersion" 
+                    number = "$newMonthPageVersion" 
                 }
             } | ConvertTo-Json
 
             # update the Archive-Page
-            $archivePageUrl = "$($pageUrl)/$($archivePageId)"
+            $archivePageUrl = "$($pageUrl)/$($idArchiveMonthPage)"
             try {
                 Invoke-RestMethod -Uri $archivePageUrl -Headers $headers -Method Put -Body $body
             } catch {
-                Write-Log "Failed to update Confluence-Page '$confluenceArchivePageTitle' `n $($_.Exception.Message)" -Severity 3
+                Write-Log "Failed to update Confluence-Page '$monthlyPageTitle' `n $($_.Exception.Message)" -Severity 3
                 exit
             }
 
-            # CleanUp AST Results-Page after successful moving the logs to the Archive-Page
-            # Set page-content to empty (with only the statusTablePattern)
+            # CleanUp AST Results-Page after successful moving the logs to the monthly Archive-Page
+            ## Set page-content to empty (with only the statusTablePattern)
             [int]$currentPageVersion = $pageResult.results[0].version.number
             [int]$newPageVersion = $currentPageVersion + 1
 
@@ -149,7 +176,7 @@ function Move-ResultsToArchive {
     
             $newPageBody = $statusTable
 
-            # Build the REST API request body for the AST Results-Page
+            ## Build the REST API request body for the AST Results-Page
             $body = @{
                 type = "page"
                 title = $confluenceResultsPageTitle
@@ -167,7 +194,7 @@ function Move-ResultsToArchive {
                 }
             } | ConvertTo-Json
 
-            # update the AST Results-Page
+            ## update the AST Results-Page
             $pageUrl = "$($pageUrl)/$($pageId)"
             try {
                 Invoke-RestMethod -Uri $pageUrl -Headers $headers -Method Put -Body $body
@@ -181,7 +208,6 @@ function Move-ResultsToArchive {
         } else {
             return
         }
-
     }
 
     end{

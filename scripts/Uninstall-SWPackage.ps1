@@ -24,10 +24,12 @@ function Uninstall-SWPackage () {
     } 
     
     process {                   
+        $validExitCodes = Get-PackageExitCodes -packageName $packageName -uninstall
+
         $process = Start-Process choco -ArgumentList $argumentList -PassThru -Wait
         $exitCode = $process.exitCode
-
-        if ($exitCode -eq 0) {
+        
+        if ($exitCode -in $validExitCodes) {
             Write-Log -Message "'$packageName' successfully uninstalled." -Severity 1
             $ExitMessage = "-"
         } else {

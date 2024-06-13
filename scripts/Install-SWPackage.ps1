@@ -36,8 +36,10 @@ function Install-SWPackage {
     process {
         $process = Start-Process choco -ArgumentList $argumentList -PassThru -Wait
         $exitCode = $process.exitCode
+
+        $validExitCodes = Get-PackageExitCodes -packageName $packageName
         
-        if ($exitCode -eq 0) {
+        if ($exitCode -in $validExitCodes) {
             if ($update){
                 Write-Log -Message "'$packageName' successfully updated." -Severity 1
             } else {

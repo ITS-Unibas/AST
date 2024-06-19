@@ -34,9 +34,10 @@ function Get-PackageExitCodes () {
         function CheckInstallerType ([string]$PathToChocolateyInstallFile) {
             $installer = Get-Content -Path $PathToChocolateyInstallFile | Select-String -Pattern $global:patternInstaller
 
-            $null = $installer -match $global:patternInstaller
-            if ($Matches[7] -like "msi") {
-                $ExitCodes = @("0", "1614", "1641", "3010")
+            if ($installer -match $global:patternInstaller){
+                if ($Matches[7] -like "msi") {
+                    $ExitCodes = @("0", "1614", "1641", "3010")
+                }
             } else {
                 $ExitCodes = @("0")
             }           

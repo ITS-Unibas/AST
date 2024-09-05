@@ -37,6 +37,8 @@ function Get-PackageExitCodes () {
             if ($installer -match $global:patternInstaller){
                 if ($Matches[7] -like "msi") {
                     $ExitCodes = @("0", "1614", "1641", "3010")
+                } else {
+                    $ExitCodes = @("0")
                 }
             } else {
                 $ExitCodes = @("0")

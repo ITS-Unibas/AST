@@ -18,7 +18,7 @@ function Get-PackageTimeStampOnRepo () {
         [String]$packageName,
 
         [Parameter(Mandatory = $true)]
-        [Version]$PackageVersion
+        [String]$PackageVersion
     )
 
     begin {

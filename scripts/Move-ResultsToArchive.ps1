@@ -33,8 +33,9 @@ function Move-ResultsToArchive {
         # Get the current day of the month, the current month and the current year
         $today = Get-Date
         $dayOfMonth = $today.Day
-        $currentMonth = $today.Month
+        $previousMonth = $today.AddMonths(-1).Month
         $currentYear = $today.Year
+        $previousYear = $today.AddYears(-1).Year
 
         # Set up the REST API request headers for all API requests
         $headers = @{
@@ -60,9 +61,15 @@ function Move-ResultsToArchive {
             exit
         }
         
-        ## Check montly Archive-Page ($currentMonthPageContents would be empty if the page does not exist yet)
+        ## Check montly Archive-Page
         $idArchiveMainPage = $currentArchivePageContents.results.id
-        $monthlyPageTitle = "$($currentYear)-$($currentMonth.ToString("00")) [AST-Archive $system]"
+
+        ## Check if the current month is December to set the year of the monthly Archive-Page-Title correctly
+        if ($previousMonth -eq 12) {
+            $monthlyPageTitle = "$($previousYear)-$($previousMonth) [AST-Archive $system]" 
+        } else {
+            $monthlyPageTitle = "$($currentYear)-$($previousMonth) [AST-Archive $system]"
+        }
 
         $monthlyPageQueryParams = @{
             title = $monthlyPageTitle
@@ -71,14 +78,14 @@ function Move-ResultsToArchive {
             status = "current"
         }
 
-        $currentMonthPageContents = Invoke-RestMethod -Uri $pageUrl -Headers $headers -Method Get -Body $monthlyPageQueryParams
+        $monthlyPageContents = Invoke-RestMethod -Uri $pageUrl -Headers $headers -Method Get -Body $monthlyPageQueryParams
 
         # Move the logs of AST Results-Page to the montly Archive-Page if it is the 1st of the month and if the current Month-Page doas not exist yet. If the page exists the backup is already done.
-        if (($dayOfMonth -eq 1) -and (!($currentMonthPageContents.Results))) {
+        if (($dayOfMonth -eq 1) -and (!($monthlyPageContents.Results))) {
             Write-Log "--- It's the 1st day of the month. Start moving the logs of AST Results-Page to the Archive-Page '$monthlyPageTitle' ---" -Severity 1
 
             # Create monthly backup-Wiki-Page
-            Write-Log "Confluence-Page for $($currentYear)-$($currentMonth.ToString("00")) seems not to exist - Create it!" -Severity 2
+            Write-Log "Confluence-Page for '$($monthlyPageTitle)' seems not to exist - Create it!" -Severity 2
             
             $bodyMonthlyPage = @{
                 type  = "page"
@@ -94,18 +101,18 @@ function Move-ResultsToArchive {
             } | ConvertTo-Json
             
             try {
-                $currentMonthPageContents = Invoke-RestMethod -Uri $pageUrl -Headers $headers -Method Post -Body $bodyMonthlyPage
+                $monthlyPageContents = Invoke-RestMethod -Uri $pageUrl -Headers $headers -Method Post -Body $bodyMonthlyPage
             } catch {
-                Write-Log "Failed to create Confluence-Page for $($currentYear)-$($currentMonth.ToString("00")) `n $($_.Exception.Message)" -Severity 3
+                Write-Log "Failed to create Confluence-Page '$($monthlyPageTitle)' `n $($_.Exception.Message)" -Severity 3
                 exit
             }
 
-            Write-Log "Confluence-Page for $($currentYear)-$($currentMonth.ToString("00")) successfully created!" -Severity 1         
+            Write-Log "Confluence-Page '$($monthlyPageTitle)' successfully created!" -Severity 1         
 
             # Set data from the Archive-Month-Page
-            [long]$idArchiveMonthPage = $currentMonthPageContents.id  
-            [int]$currentMonthPageVersion = $currentMonthPageContents.version.number
-            [int]$newMonthPageVersion = $currentMonthPageVersion  + 1
+            [long]$idArchiveMonthPage = $monthlyPageContents.id  
+            [int]$monthlyPageVersion = $monthlyPageContents.version.number
+            [int]$newMonthPageVersion = $monthlyPageVersion  + 1
 
             # Check if the AST Results-Page exists and get its contents
             $resultsPageQueryParams = @{
@@ -148,7 +155,7 @@ function Move-ResultsToArchive {
             try {
                 Invoke-RestMethod -Uri $archivePageUrl -Headers $headers -Method Put -Body $body
             } catch {
-                Write-Log "Failed to update Confluence-Page '$monthlyPageTitle' `n $($_.Exception.Message)" -Severity 3
+                Write-Log "Failed to update Confluence-Page '$($monthlyPageTitle)' `n $($_.Exception.Message)" -Severity 3
                 exit
             }
 
@@ -199,7 +206,7 @@ function Move-ResultsToArchive {
             try {
                 Invoke-RestMethod -Uri $pageUrl -Headers $headers -Method Put -Body $body
             } catch {
-                Write-Log "Failed to update Confluence-Page '$confluenceResultsPageTitle' `n $($_.Exception.Message)" -Severity 3
+                Write-Log "Failed to update Confluence-Page '$($confluenceResultsPageTitle)' `n $($_.Exception.Message)" -Severity 3
                 exit
             }
 

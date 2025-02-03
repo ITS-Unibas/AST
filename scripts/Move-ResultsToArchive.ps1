@@ -68,6 +68,8 @@ function Move-ResultsToArchive {
         if ($previousMonth -eq 12) {
             $monthlyPageTitle = "$($previousYear)-$($previousMonth) [AST-Archive $system]" 
         } else {
+			# Set a leading "0" for a display-title like "2025-01"
+			if ($previousMonth -lt 10){$previousMonth = "0$previousMonth"}
             $monthlyPageTitle = "$($currentYear)-$($previousMonth) [AST-Archive $system]"
         }
 

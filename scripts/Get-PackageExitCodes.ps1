@@ -26,8 +26,8 @@ function Get-PackageExitCodes () {
         $chocoUnsuccessfulInstallPath = Join-Path $env:ChocolateyInstall "lib-bad"
         $chocolateyInstallFile = "chocolateyInstall.ps1"        
         $validExitCodes = @()
-        $global:patternInstaller = "(?i)^(\s*)(fileType)(\s*)(=)(\s*)(['""])(.*)(['""])$"
-        $patternExitCodes = "(?i)^(\s*)(validExitCodes)(\s*)(=)(\s*)(@\()(.*)(\))$"
+        $global:patternInstaller = "(?i)(fileType)(\s*)(=)(\s*)(['""])(.*)(['""])"
+        $patternExitCodes = "(?i)(validExitCodes)(\s*)(=)(\s*)(@\()(.*)(\))"
     } 
     
     process {          
@@ -35,7 +35,7 @@ function Get-PackageExitCodes () {
             $installer = Get-Content -Path $PathToChocolateyInstallFile | Select-String -Pattern $global:patternInstaller
 
             if ($installer -match $global:patternInstaller){
-                if ($Matches[7] -like "msi") {
+                if ($Matches[6] -like "msi") {
                     $ExitCodes = @("0", "1614", "1641", "3010")
                 } else {
                     $ExitCodes = @("0")
@@ -58,14 +58,25 @@ function Get-PackageExitCodes () {
         if ($uninstall) {
             $validExitCodes = CheckInstallerType $chocoInstallPath
         } else {
-            # Check for validExitCodes in the chocolateyInstall.ps
-            $exitCodeLine = Get-Content -Path $chocoInstallPath | Select-String -Pattern $patternExitCodes 
-            
-            if ($exitCodeLine) {
-                $null = $exitCodeLine -match $patternExitCodes
-                $validExitCodes += ($Matches[7] -split ",")
+            # Check for validExitCodes in the chocolateyInstall.ps1 file
+            if (Test-Path $chocoInstallPath) {
+                Write-Log -Message "Looking for validExitCodes in: $chocoInstallPath" -Severity 0
+                $exitCodeLine = Get-Content -Path $chocoInstallPath | Select-String -Pattern $patternExitCodes 
+                
+                if ($exitCodeLine) {
+                    Write-Log -Message "Found validExitCodes line: $exitCodeLine" -Severity 0
+                    $null = $exitCodeLine -match $patternExitCodes
+                    # Extract the exit codes from group 6 and clean them up
+                    $exitCodesString = $Matches[6]
+                    $validExitCodes += ($exitCodesString -split "," | ForEach-Object { $_.Trim() -replace "[^0-9]", "" } | Where-Object { $_ -ne "" })
+                    Write-Log -Message "Extracted validExitCodes: $($validExitCodes -join ', ')" -Severity 0
+                } else {
+                    Write-Log -Message "No validExitCodes found in chocolateyInstall.ps1, using installer type defaults" -Severity 0
+                    $validExitCodes = CheckInstallerType $chocoInstallPath
+                }
             } else {
-                $validExitCodes = CheckInstallerType $chocoInstallPath
+                Write-Log -Message "chocolateyInstall.ps1 not found at: $chocoInstallPath" -Severity 1
+                $validExitCodes = @("0")
             }
         }
     } 

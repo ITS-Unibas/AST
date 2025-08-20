@@ -1,0 +1,33 @@
+workflow changes
+
+was ist neu:
+
+- results werden sofort nach jedem package geschrieben
+- 3h timeout pro package
+- exclusion system für problematic packages
+- kein hanging mehr bei stuck packages
+- live monitoring möglich
+
+neue files:
+- Get-ExcludedPackages.ps1
+- Test-IsPackageExcluded.ps1
+
+geänderte files:
+- Start-AutomatedSoftwareTesting.ps1 (timeout + exclusion logic)
+- config.json (ExclusionListPath added)
+
+neue result states:
+- TIMEOUT wenn package zu lange dauert
+- EXCLUDED wenn test übersprungen wird
+
+exclusion examples:
+TestType options: update, uninstall, install, desktop, appwiz, all
+- msedge:uninstall
+- firefox:all  
+- chrome:desktop,appwiz
+
+features:
+- timeout nach 3h pro package
+- iterative result writing
+- granular test exclusion
+- enhanced logging

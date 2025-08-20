@@ -14,7 +14,8 @@
 		"RepositoryManagerAPIBaseUrl": "",
 		"RepositoryManagerAPIUser": "",
 		"RepostoryManagerAPIPassword": "",
-		"WishlistPath": ""
+		"WishlistPath": "",
+		"ExclusionListPath": ""
     },
     "Logging": {
 		"LogPath": "logs",

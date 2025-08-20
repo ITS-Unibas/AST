@@ -1,0 +1,18 @@
+exit codes fix
+
+was wurde geändert:
+
+geänderte files:
+- Get-PackageExitCodes.ps1
+
+problem:
+- validExitCodes wurden nicht richtig erkannt bei hashtable format
+- chocolatey packages verwenden $packageArgs = @{ validExitCodes = @(0, 3010) }
+- alte regex pattern hat nur direkte assignments erkannt
+
+fix:
+- regex pattern updated für hashtable format
+- supports both old und new chocolatey package format
+- better text parsing für numbers extraction
+- debug logging hinzugefügt für troubleshooting
+- path existence checks

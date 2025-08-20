@@ -29,7 +29,11 @@ function Start-AutomatedSoftwareTesting {
         $maxResultFiles = $config.Logging.MaxResultFiles
         $astWishlist = $config.Application.WishlistPath
         $timedOutPackages = @()
+        $excludedPackagesFromTesting = @()
         $packageTimeout = 3 * 60 * 60 # 3 hours in seconds
+        
+        # Load exclusion configuration
+        $packageExclusions = Get-ExcludedPackages
         
         # create ResultsLogFileFolder if not available and setup for iterative writing
         if (-Not (Test-Path $resultsPath -ErrorAction SilentlyContinue)) {
@@ -69,6 +73,60 @@ function Start-AutomatedSoftwareTesting {
                 $outdatedPackageName = $outdatedPackage.PackageName
                 $outdatedPackageInstalledVersion = $outdatedPackage.InstalledVersion
                 $outdatedPackageLatestVersion = $outdatedPackage.LatestVersion
+                
+                # Check if entire package should be excluded from testing
+                if (Test-IsPackageExcluded -packageName $outdatedPackageName -testType "all" -exclusions $packageExclusions) {
+                    Write-Log -Message "Package '$outdatedPackageName' is excluded from ALL testing - skipping" -Severity 1
+                    $excludedPackagesFromTesting += $outdatedPackageName
+                    
+                    # Create an exclusion result entry
+                    $excludedPackage = [PSCustomObject]@{
+                        TimeStamp = (Get-Date -Format 'MM/dd/yyyy HH:mm:ss').ToString() -replace "\.", "/"
+                        PackageName = $outdatedPackageName
+                        InstalledVersion = $outdatedPackageInstalledVersion
+                        LatestVersion = $outdatedPackageLatestVersion
+                        UpdateExitCode = "EXCLUDED"
+                        UpdateExitMessage = "Package excluded from all testing"
+                        HasNoDesktopShortcutForPublicUser = "EXCLUDED"
+                        HasNotMultipleAddRemoveEntries = "EXCLUDED"
+                        UninstallExitCode = "EXCLUDED"
+                        UninstallExitMessage = "Package excluded from testing"
+                        InstallExitCode = "EXCLUDED"
+                        InstallExitMessage = "Package excluded from testing"
+                        Dependencies = "EXCLUDED"
+                        UninstallDependenciesExitCode = "EXCLUDED"
+                        UninstallDependenciesExitMessage = "Package excluded from testing"
+                    }
+                    
+                    $newPackages.Add($excludedPackage.PackageName, $excludedPackage)
+                    $allPackagesResults.Add($excludedPackage.PackageName, $excludedPackage)
+                    
+                    # Write results for excluded package
+                    $currentResults = @{}
+                    foreach ($pkg in $allPackagesResults.GetEnumerator()) {
+                        $currentResults.Add($pkg.Key, $pkg.Value)
+                    }
+                    if ($oldPackages) {
+                        foreach ($oldPkg in $oldPackages.GetEnumerator()) {
+                            if (-not $currentResults.ContainsKey($oldPkg.Key)) {
+                                $currentResults.Add($oldPkg.Key, $oldPkg.Value)
+                            }
+                        }
+                    }
+                    
+                    $numResultsFiles = (Get-ChildItem -Path $resultsPath -Filter '*.json' | Measure-Object).Count
+                    if ($numResultsFiles -ge $maxResultFiles) {
+                        Get-ChildItem $resultsPath | Sort-Object CreationTime | Select-Object -First ($numResultsFiles - $maxResultFiles + 1) | Remove-Item
+                    }
+                    
+                    $sortedResults = $currentResults.GetEnumerator() | Sort-Object -Property Name
+                    $formattedResults = Add-ToAllNewPackages -packages $sortedResults
+                    $formattedResults | ConvertTo-Json | Out-File $resultsFilePath
+                    
+                    Write-Log -Message "Results updated for excluded package: $($excludedPackage.PackageName)" -Severity 0
+                    continue
+                }
+                
                 # Check if outdated Packages were found and give a meaningful output (processing package x of y)
                 Write-Log -Message "Starting automated Software-Testing for: $outdatedPackageName (previous version: $outdatedPackageInstalledVersion - new version: $outdatedPackageLatestVersion)" -Severity 1
                 
@@ -124,11 +182,19 @@ function Start-AutomatedSoftwareTesting {
                         throw "Package timeout reached"
                     }
                     
-                    # Update the outdated package
-                    $updateResult = Install-SWPackage -Package $outdatedPackageName -update
+                    # Check if update test should be excluded
+                    if (Test-IsPackageExcluded -packageName $outdatedPackageName -testType "update" -exclusions $packageExclusions) {
+                        $newPackage.UpdateExitCode = "EXCLUDED"
+                        $newPackage.UpdateExitMessage = "Update test excluded for this package"
+                        Write-Log -Message "Update test excluded for package: $outdatedPackageName" -Severity 1
+                        $updateResult = @{ExitCode = "EXCLUDED"}
+                    } else {
+                        # Update the outdated package
+                        $updateResult = Install-SWPackage -Package $outdatedPackageName -update
 
-                    $newPackage.UpdateExitCode = $updateResult.ExitCode
-                    $newPackage.UpdateExitMessage = $updateResult.Message
+                        $newPackage.UpdateExitCode = $updateResult.ExitCode
+                        $newPackage.UpdateExitMessage = $updateResult.Message
+                    }
 
                     # Check timeout after update
                     if ($timer.Elapsed.TotalSeconds -gt $packageTimeout) {
@@ -138,8 +204,8 @@ function Start-AutomatedSoftwareTesting {
                         throw "Package timeout reached"
                     }
 
-                    # Check if the update-process was successful or not and move on if so
-                    if ($updateResult.ExitCode -eq 0){
+                    # Check if the update-process was successful, excluded, or failed
+                    if ($updateResult.ExitCode -eq 0 -or $updateResult.ExitCode -eq "EXCLUDED"){
                         $originalSoftwareName = Get-OriginalSoftwareName -package $outdatedPackageName -version $outdatedPackageInstalledVersion
 
                         if ($originalSoftwareName){
@@ -156,14 +222,21 @@ function Start-AutomatedSoftwareTesting {
                             throw "Package timeout reached"
                         }
 
-                        $returnHDSFPU, $DesktopShortcuts = Test-HasNoDesktopShortcutForPublicUser -packageName $outdatedPackageName -originalName $originalSoftwareName
+                        # Check if desktop shortcut test should be excluded
+                        if (Test-IsPackageExcluded -packageName $outdatedPackageName -testType "desktop" -exclusions $packageExclusions) {
+                            $newPackage.HasNoDesktopShortcutForPublicUser = "EXCLUDED"
+                            Write-Log -Message "Desktop shortcut test excluded for package: $outdatedPackageName" -Severity 1
+                            $DesktopShortcuts = @() # Empty array for excluded test
+                        } else {
+                            $returnHDSFPU, $DesktopShortcuts = Test-HasNoDesktopShortcutForPublicUser -packageName $outdatedPackageName -originalName $originalSoftwareName
 
-                    # Check if NO desktop-Shortcut was found
-                    if ($returnHDSFPU){
-                        $newPackage.HasNoDesktopShortcutForPublicUser = "true"
-                    } else {
-                        $newPackage.HasNoDesktopShortcutForPublicUser = "false"
-                    }
+                            # Check if NO desktop-Shortcut was found
+                            if ($returnHDSFPU){
+                                $newPackage.HasNoDesktopShortcutForPublicUser = "true"
+                            } else {
+                                $newPackage.HasNoDesktopShortcutForPublicUser = "false"
+                            }
+                        }
 
                         # Check timeout before AppWiz entries test
                         if ($timer.Elapsed.TotalSeconds -gt $packageTimeout) {
@@ -173,14 +246,20 @@ function Start-AutomatedSoftwareTesting {
                             throw "Package timeout reached"
                         }
 
-                        # Check for multiple AppWiz-Entries
-                        $returnHMAWE = Test-HasNotMultipleAppWizEntries -packageName $outdatedPackageName -originalName $originalSoftwareName
-
-                        # Check if NOT multiple AppWiz-Entries were found
-                        if ($returnHMAWE){
-                            $newPackage.HasNotMultipleAddRemoveEntries = "true"
+                        # Check if AppWiz test should be excluded
+                        if (Test-IsPackageExcluded -packageName $outdatedPackageName -testType "appwiz" -exclusions $packageExclusions) {
+                            $newPackage.HasNotMultipleAddRemoveEntries = "EXCLUDED"
+                            Write-Log -Message "Add/Remove Programs test excluded for package: $outdatedPackageName" -Severity 1
                         } else {
-                            $newPackage.HasNotMultipleAddRemoveEntries = "false"
+                            # Check for multiple AppWiz-Entries
+                            $returnHMAWE = Test-HasNotMultipleAppWizEntries -packageName $outdatedPackageName -originalName $originalSoftwareName
+
+                            # Check if NOT multiple AppWiz-Entries were found
+                            if ($returnHMAWE){
+                                $newPackage.HasNotMultipleAddRemoveEntries = "true"
+                            } else {
+                                $newPackage.HasNotMultipleAddRemoveEntries = "false"
+                            }
                         }
 
                         # Check timeout before dependency operations
@@ -229,11 +308,19 @@ function Start-AutomatedSoftwareTesting {
                             throw "Package timeout reached"
                         }
 
-                        # Uninstall the updated package to see if an installation process succeeds with a previous version installed
-                        $returnUninstallation = Uninstall-SWPackage -packageName $outdatedPackageName
+                        # Check if uninstall test should be excluded
+                        if (Test-IsPackageExcluded -packageName $outdatedPackageName -testType "uninstall" -exclusions $packageExclusions) {
+                            $newPackage.UninstallExitCode = "EXCLUDED"
+                            $newPackage.UninstallExitMessage = "Uninstall test excluded for this package"
+                            Write-Log -Message "Uninstall test excluded for package: $outdatedPackageName" -Severity 1
+                            $returnUninstallation = @{ExitCode = "EXCLUDED"}
+                        } else {
+                            # Uninstall the updated package to see if an installation process succeeds with a previous version installed
+                            $returnUninstallation = Uninstall-SWPackage -packageName $outdatedPackageName
 
-                        $newPackage.UninstallExitCode = $returnUninstallation.ExitCode
-                        $newPackage.UninstallExitMessage = $returnUninstallation.Message
+                            $newPackage.UninstallExitCode = $returnUninstallation.ExitCode
+                            $newPackage.UninstallExitMessage = $returnUninstallation.Message
+                        }
 
                         # Check timeout before package reinstall
                         if ($timer.Elapsed.TotalSeconds -gt $packageTimeout) {
@@ -243,11 +330,18 @@ function Start-AutomatedSoftwareTesting {
                             throw "Package timeout reached"
                         }
 
-                        # Install the outdated package again to be ready for the next update-testing
-                        $installResult = Install-SWPackage -Package $outdatedPackageName
-        
-                        $newPackage.InstallExitCode = $installResult.ExitCode
-                        $newPackage.InstallExitMessage = $installResult.Message
+                        # Check if install test should be excluded
+                        if (Test-IsPackageExcluded -packageName $outdatedPackageName -testType "install" -exclusions $packageExclusions) {
+                            $newPackage.InstallExitCode = "EXCLUDED"
+                            $newPackage.InstallExitMessage = "Install test excluded for this package"
+                            Write-Log -Message "Install test excluded for package: $outdatedPackageName" -Severity 1
+                        } else {
+                            # Install the outdated package again to be ready for the next update-testing
+                            $installResult = Install-SWPackage -Package $outdatedPackageName
+            
+                            $newPackage.InstallExitCode = $installResult.ExitCode
+                            $newPackage.InstallExitMessage = $installResult.Message
+                        }
 
                         # Install all dependencies again to be ready for the next update-testing
                         if ($newPackage.Dependencies -ne "-"){
@@ -468,12 +562,24 @@ function Start-AutomatedSoftwareTesting {
         $runTime = New-TimeSpan -Start $StartTime -End (Get-Date)
         $global:packagingWorkflowDuration = "{0:d2}:{1:d2}:{2:d2}" -f ($runTime.Hours), ($runTime.Minutes), ($runTime.Seconds)
         
-        # Log timeout information if any packages timed out
+        # Log timeout and exclusion information
+        $summaryMessages = @()
+        $summaryMessages += "The packaging Workflow took $global:packagingWorkflowDuration h."
+        
         if ($timedOutPackages.Count -gt 0) {
-            Write-Log "The packaging Workflow took $global:packagingWorkflowDuration h. TIMEOUT INFO: $($timedOutPackages.Count) package(s) timed out after 3 hours each: $($timedOutPackages -join ', ')" -Severity 2
-        } else {
-            Write-Log "The packaging Workflow took $global:packagingWorkflowDuration h. No packages timed out." -Severity 1
+            $summaryMessages += "TIMEOUT INFO: $($timedOutPackages.Count) package(s) timed out after 3 hours each: $($timedOutPackages -join ', ')"
         }
+        
+        if ($excludedPackagesFromTesting.Count -gt 0) {
+            $summaryMessages += "EXCLUSION INFO: $($excludedPackagesFromTesting.Count) package(s) excluded from all testing: $($excludedPackagesFromTesting -join ', ')"
+        }
+        
+        if ($timedOutPackages.Count -eq 0 -and $excludedPackagesFromTesting.Count -eq 0) {
+            $summaryMessages += "No packages timed out or were excluded."
+        }
+        
+        $severity = if ($timedOutPackages.Count -gt 0) { 2 } else { 1 }
+        Write-Log ($summaryMessages -join " ") -Severity $severity
 
         # Write results to Confluence page only if new packages were tested (use the most recent results file)
         if ($outdatedPackages.Count -ne 0){
@@ -485,10 +591,24 @@ function Start-AutomatedSoftwareTesting {
         $runTimeWithConfluenceUpload = New-TimeSpan -Start $StartTime -End (Get-Date)
         $Duration = "{0:d2}:{1:d2}:{2:d2}" -f ($runTimeWithConfluenceUpload.Hours), ($runTimeWithConfluenceUpload.Minutes), ($runTimeWithConfluenceUpload.Seconds)
         
-        if ($timedOutPackages.Count -gt 0) {
-            Write-Log "The process took $Duration. Finished with $($timedOutPackages.Count) timeout(s): $($timedOutPackages -join ', ')" -Severity 2
+        # Final completion message with summary
+        $completionMessages = @()
+        $completionMessages += "The process took $Duration. Finished"
+        
+        if ($timedOutPackages.Count -gt 0 -or $excludedPackagesFromTesting.Count -gt 0) {
+            $completionDetails = @()
+            if ($timedOutPackages.Count -gt 0) {
+                $completionDetails += "$($timedOutPackages.Count) timeout(s): $($timedOutPackages -join ', ')"
+            }
+            if ($excludedPackagesFromTesting.Count -gt 0) {
+                $completionDetails += "$($excludedPackagesFromTesting.Count) exclusion(s): $($excludedPackagesFromTesting -join ', ')"
+            }
+            $completionMessages += "with $($completionDetails -join ' and ')."
         } else {
-            Write-Log "The process took $Duration. Finished successfully." -Severity 1
+            $completionMessages += "successfully."
         }
+        
+        $finalSeverity = if ($timedOutPackages.Count -gt 0) { 2 } else { 1 }
+        Write-Log ($completionMessages -join " ") -Severity $finalSeverity
     }
 }

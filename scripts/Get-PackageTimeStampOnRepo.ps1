@@ -29,7 +29,7 @@ function Get-PackageTimeStampOnRepo () {
         $Base64Auth = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(("{0}:{1}" -f $Config.Application.RepositoryManagerAPIUser, $Config.Application.RepostoryManagerAPIPassword)))
         $Uri = $Config.Application.RepositoryManagerAPIBaseUrl + "Packages(Id='$PackageName',Version='$PackageVersion')"
         try {
-            $Response = Invoke-WebRequest -Uri $Uri -Headers @{Authorization = "Basic $Base64Auth" }
+            $Response = Invoke-WebRequest -Uri $Uri -Headers @{Authorization = "Basic $Base64Auth" } -UseBasicParsing
             [xml]$XMLContent = $Response | Select-Object -ExpandProperty Content
             [datetime]$PublishDate = $XMLContent.entry.properties.Published.'#text'
             Write-Log -Message "Publish Date for $PackageName@$PackageVersion is $PublishDate." -Severity 1

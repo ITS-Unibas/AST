@@ -52,8 +52,8 @@ function Add-NewPackagesForTesting () {
         $newPackagesToBeAdded | ForEach-Object {
             $newPackage = $_
             # Check if the new added packages exist on the repo or is already installed
-            $newPackageCheckOnRepo = (choco search $newPackage --source dev -r)
-            $newPackageCheckInstall = (choco list -lo $newPackage -r)
+            $newPackageCheckOnRepo = (choco search -e $newPackage --source dev -r)
+            $newPackageCheckInstall = (choco list -lo -e $newPackage -r)
 
             if ($newPackageCheckOnRepo -and !($newPackageCheckInstall)){
                 Write-Log -Message "Checking software-package: '$newPackage' OK! $newPackage not installed and found on dev-Repo!" -Severity 1
@@ -87,7 +87,7 @@ function Add-NewPackagesForTesting () {
         $newPackagesToBeAddedCompleted = $manuallyAddedPackages | ForEach-Object {
             $packageName = $_
             $installedVersion = "0.0"
-            $latestVersion = (choco search $packageName --source dev -r).split("|")[1]
+            $latestVersion = (choco search -e $packageName --source dev -r).split("|")[1]
             [PSCustomObject]@{
                 PackageName = $packageName
                 InstalledVersion = $installedVersion
